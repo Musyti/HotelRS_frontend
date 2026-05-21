@@ -9,11 +9,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.russhwolf.settings.Settings
 import kotlinx.coroutines.launch
 import org.example.project.models.*
 import org.example.project.network.ApiClient
@@ -37,11 +40,24 @@ private val BlueColorScheme = lightColorScheme(
 @Composable
 fun App() {
     MaterialTheme(colorScheme = BlueColorScheme) {
-        var auth by remember { mutableStateOf<AuthResponse?>(null) }
+        val settings = remember { Settings() }
+
+        // Явно указываем тип String?, чтобы убрать ошибку типов Any
+        val savedToken: String? = settings.getStringOrNull("auth_token")
+        val savedRole: String? = settings.getStringOrNull("auth_role")
+
+        var auth by remember {
+            mutableStateOf(
+                if (savedToken != null && savedRole != null) {
+                    AuthResponse(token = savedToken, role = savedRole, guestId = null)
+                } else null
+            )
+        }
+
         var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
-        var isLoading by remember { mutableStateOf(false) }
-        var errorMessage by remember { mutableStateOf<String?>(null) }
-        var showCreateTicket by remember { mutableStateOf(false) }
+        var isLoading by rememberSaveable { mutableStateOf(false) }
+        var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
+        var showCreateTicket by rememberSaveable { mutableStateOf(false) }
 
         val scope = rememberCoroutineScope()
         val platform = remember { getPlatform() }
@@ -51,7 +67,7 @@ fun App() {
             if (auth != null && auth!!.role == "GUEST" && !showCreateTicket) {
                 isLoading = true
                 try {
-                    tickets = apiClient.getGuestTickets(auth!!.guestId!!)
+                    tickets = apiClient.getGuestTickets(auth!!.token)
                     errorMessage = null
                 } catch (e: Exception) {
                     errorMessage = "Ошибка загрузки: ${e.message}"
@@ -80,6 +96,8 @@ fun App() {
                                     val response = apiClient.login(
                                         LoginRequest(type, identifier, password)
                                     )
+                                    settings.putString("auth_token", response.token)
+                                    settings.putString("auth_role", response.role)
                                     auth = response
                                 } catch (e: Exception) {
                                     errorMessage = "Ошибка входа: ${e.message}"
@@ -94,7 +112,12 @@ fun App() {
                 auth!!.role == "ADMIN" || auth!!.role == "STAFF" -> {
                     AdminScreen(
                         apiClient = apiClient,
-                        onLogout = { auth = null }
+                        authToken = auth!!.token,
+                        onLogout = {
+                            settings.remove("auth_token")
+                            settings.remove("auth_role")
+                            auth = null
+                        }
                     )
                 }
 
@@ -104,9 +127,9 @@ fun App() {
                             scope.launch {
                                 isLoading = true
                                 try {
-                                    apiClient.createTicket(auth!!.guestId!!, CreateTicketRequest(categoryId, description))
+                                    apiClient.createTicket(auth!!.token, CreateTicketRequest(categoryId, description))
                                     showCreateTicket = false
-                                    tickets = apiClient.getGuestTickets(auth!!.guestId!!)
+                                    tickets = apiClient.getGuestTickets(auth!!.token)
                                     errorMessage = null
                                 } catch (e: Exception) {
                                     errorMessage = "Ошибка создания: ${e.message}"
@@ -129,7 +152,7 @@ fun App() {
                             scope.launch {
                                 isLoading = true
                                 try {
-                                    tickets = apiClient.getGuestTickets(auth!!.guestId!!)
+                                    tickets = apiClient.getGuestTickets(auth!!.token)
                                     errorMessage = null
                                 } catch (e: Exception) {
                                     errorMessage = "Ошибка загрузки: ${e.message}"
@@ -138,7 +161,11 @@ fun App() {
                                 }
                             }
                         },
-                        onLogout = { auth = null }
+                        onLogout = {
+                            settings.remove("auth_token")
+                            settings.remove("auth_role")
+                            auth = null
+                        }
                     )
                 }
             }
@@ -152,9 +179,9 @@ fun LoginScreen(
     errorMessage: String?,
     onLogin: (type: String, identifier: String, password: String?) -> Unit
 ) {
-    var type by remember { mutableStateOf("STAFF") }
-    var identifier by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var type by rememberSaveable { mutableStateOf("STAFF") }
+    var identifier by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -320,14 +347,15 @@ fun GuestTicketsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val currentError = errorMessage
         when {
             isLoading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
-            errorMessage != null -> {
-                Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
+            currentError != null -> {
+                Text(text = currentError, color = MaterialTheme.colorScheme.error)
             }
             tickets.isEmpty() -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -402,14 +430,12 @@ fun TicketCard(ticket: TicketResponse) {
     }
 }
 
-// ====== ИСПРАВЛЕНО: ТЕПЕРЬ ТУТ ВЫПАДАЮЩИЙ СПИСОК (DROPDOWN MENU) ======
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateTicketScreen(
     onCreate: (categoryId: Int, description: String) -> Unit,
     onBack: () -> Unit
 ) {
-    // Список категорий, соответствующий твоей структуре БД
     val categories = listOf(
         1 to "Уборка номера",
         2 to "Технический ремонт",
@@ -418,8 +444,11 @@ fun CreateTicketScreen(
     )
 
     var expanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf(categories[0]) } // По умолчанию первая
+    var selectedCategory by remember { mutableStateOf(categories[0]) }
     var description by remember { mutableStateOf("") }
+
+    // ДОБАВЛЕНО: Флаг отправки, чтобы предотвратить спам кликами
+    var isSending by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -434,21 +463,21 @@ fun CreateTicketScreen(
         Text(text = "Выберите категорию:", style = MaterialTheme.typography.titleSmall)
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Material 3 Выпадающий список (ExposedDropdownMenuBox)
         ExposedDropdownMenuBox(
             expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
+            onExpandedChange = { if (!isSending) expanded = !expanded }, // Блокируем меню при отправке
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value = selectedCategory.second, // Отображаем название текстом
+                value = selectedCategory.second,
                 onValueChange = {},
-                readOnly = true, // Запрещаем ввод с клавиатуры
+                readOnly = true,
                 label = { Text("Категория услуги") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true).fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isSending
             )
 
             ExposedDropdownMenu(
@@ -476,7 +505,8 @@ fun CreateTicketScreen(
             label = { Text("Что необходимо сделать?") },
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            enabled = !isSending // Отключаем ввод во время отправки
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -488,46 +518,67 @@ fun CreateTicketScreen(
             OutlinedButton(
                 onClick = onBack,
                 modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isSending
             ) {
                 Text("Назад")
             }
 
             Button(
                 onClick = {
-                    if (description.isNotBlank()) {
-                        onCreate(selectedCategory.first, description) // Передаем чистый ID в бэкенд
+                    if (description.isNotBlank() && !isSending) {
+                        isSending = true // Сразу блокируем кнопку
+                        onCreate(selectedCategory.first, description)
                     }
                 },
                 modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isSending && description.isNotBlank()
             ) {
-                Text("Отправить")
+                if (isSending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Отправить")
+                }
             }
         }
     }
 }
 
+// ====== ОБНОВЛЕННАЯ АДМИН-ПАНЕЛЬ С ИНТЕРАКТИВОМ ======
 @Composable
 fun AdminScreen(
     apiClient: ApiClient,
+    authToken: String,
     onLogout: () -> Unit
 ) {
     var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var statusFilter by remember { mutableStateOf<String?>(null) }
+    var statusFilter by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    val refreshTickets = {
+        isLoading = true
+        scope.launch {
+            try {
+                tickets = apiClient.getAllTickets(authToken, statusFilter)
+                errorMessage = null
+            } catch (e: Exception) {
+                errorMessage = "Ошибка загрузки: ${e.message}"
+            } finally {
+                isLoading = false
+            }
+        }
+    }
 
     LaunchedEffect(statusFilter) {
-        isLoading = true
-        try {
-            tickets = apiClient.getAllTickets(statusFilter)
-            errorMessage = null
-        } catch (e: Exception) {
-            errorMessage = "Ошибка загрузки: ${e.message}"
-        } finally {
-            isLoading = false
-        }
+        refreshTickets()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -549,8 +600,6 @@ fun AdminScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ====== ИСПРАВЛЕНО: ТЕПЕРЬ ТЕКСТ «В РАБОТЕ» НЕ СЪЕЗЖАЕТ ======
-        // Добавили горизонтальный скролл. На маленьких экранах чипы можно плавно листать пальцем, они сохраняют красивую ширину
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -562,12 +611,7 @@ fun AdminScreen(
                 FilterChip(
                     selected = statusFilter == filter,
                     onClick = { statusFilter = filter },
-                    label = {
-                        Text(
-                            text = label,
-                            maxLines = 1 // Строго запрещаем перенос на другую строку
-                        )
-                    },
+                    label = { Text(text = label, maxLines = 1) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = Color.White
@@ -578,24 +622,61 @@ fun AdminScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val currentError = errorMessage
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        } else if (errorMessage != null) {
-            Text(text = errorMessage!!, color = MaterialTheme.colorScheme.error)
+        } else if (currentError != null) {
+            Text(text = currentError, color = MaterialTheme.colorScheme.error)
+        } else if (tickets.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Заявок в этой категории нет", color = Color.Gray)
+            }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(tickets) { ticket ->
-                    AdminTicketCard(ticket = ticket)
+                    AdminTicketCard(
+                        ticket = ticket,
+                        onStatusChange = { newStatus ->
+                            scope.launch {
+                                try {
+                                    // ИСПРАВЛЕНО: Передаем authToken первым параметром!
+                                    apiClient.updateTicketStatus(authToken, ticket.id, newStatus)
+                                    refreshTickets() // Перезапрашиваем список, чтобы статус обновился на экране
+                                    errorMessage = null
+                                } catch (e: Exception) {
+                                    errorMessage = "Не удалось обновить статус: ${e.message}"
+                                }
+                            }
+                        },
+                        onDelete = {
+                            scope.launch {
+                                try {
+                                    // ИСПРАВЛЕНО: Передаем authToken для удаления
+                                    apiClient.deleteTicket(authToken, ticket.id)
+                                    refreshTickets()
+                                    errorMessage = null
+                                } catch (e: Exception) {
+                                    errorMessage = "Не удалось удалить заявку: ${e.message}"
+                                }
+                            }
+                        }
+                    )
                 }
             }
+
         }
     }
 }
 
+// ====== ОБНОВЛЕННАЯ КАРТОЧКА АДМИНА С КНОПКАМИ ДЕЙСТВИЙ ======
 @Composable
-fun AdminTicketCard(ticket: TicketResponse) {
+fun AdminTicketCard(
+    ticket: TicketResponse,
+    onStatusChange: (String) -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -606,9 +687,8 @@ fun AdminTicketCard(ticket: TicketResponse) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically // Выравниваем текст по центру строки
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Ограничиваем имя гостя, чтобы оно не выталкивало статус
                 Text(
                     text = "${ticket.guestName} (Комн. ${ticket.roomNumber})",
                     style = MaterialTheme.typography.titleMedium,
@@ -626,7 +706,7 @@ fun AdminTicketCard(ticket: TicketResponse) {
                     },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1, // Чтобы статус внутри карточки тоже никогда не рвало на куски
+                    maxLines = 1,
                     color = when (ticket.status) {
                         "NEW" -> DeepBluePrimary
                         "IN_PROGRESS" -> Color(0xFF2E7D32)
@@ -643,6 +723,57 @@ fun AdminTicketCard(ticket: TicketResponse) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = ticket.description, style = MaterialTheme.typography.bodyMedium)
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp) // ИСПРАВЛЕНО: HorizontalDivider вместо Divider
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    when (ticket.status) {
+                        "NEW" -> {
+                            Button(
+                                onClick = { onStatusChange("IN_PROGRESS") },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                // ИСПРАВЛЕНО: Использование текста вместо Vector-иконки
+                                Text("▶ В работу", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        "IN_PROGRESS" -> {
+                            Button(
+                                onClick = { onStatusChange("COMPLETED") },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                // ИСПРАВЛЕНО: Использование текста вместо Vector-иконки
+                                Text("✓ Завершить", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        "COMPLETED" -> {
+                            Text(
+                                text = "Архивировано",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // ИСПРАВЛЕНО: Текстовая кнопка-эмодзи вместо IconButton со сломанным ресурсом
+                TextButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(4.dp)
+                ) {
+                    Text("❌", fontSize = 16.sp)
+                }
+            }
         }
     }
 }

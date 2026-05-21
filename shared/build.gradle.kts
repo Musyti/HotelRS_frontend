@@ -46,6 +46,8 @@ kotlin {
             implementation("io.ktor:ktor-client-core:3.4.3")
             implementation("io.ktor:ktor-client-content-negotiation:3.4.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.4.3")
+            implementation("com.russhwolf:multiplatform-settings:1.1.1")
+            implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
         }
         jvmMain.dependencies {
             implementation("io.ktor:ktor-client-cio:3.4.3")

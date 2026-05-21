@@ -4,12 +4,16 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.appendPathSegments
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -42,49 +46,47 @@ class ApiClient(
         }.body()
     }
 
-    // Создание заявки (для гостя)
-    suspend fun createTicket(guestId: Int, request: CreateTicketRequest): Map<String, String> {
-        return client.post {
-            url {
-                appendPathSegments("api", "tickets")
-            }
-            contentType(ContentType.Application.Json)
-            header("X-Guest-Id", guestId.toString())
-            setBody(request)
-        }.body()
-    }
-
     // Получение заявок гостя
-    suspend fun getGuestTickets(guestId: Int): List<TicketResponse> {
+    suspend fun getGuestTickets(token: String): List<TicketResponse> {
         return client.get {
             url {
+                // Добавляем "guest", чтобы путь стал /api/guest/tickets
                 appendPathSegments("api", "guest", "tickets")
             }
-            header("X-Guest-Id", guestId.toString())
+            header(HttpHeaders.Authorization, "Bearer $token")
         }.body()
     }
 
-    // Получение всех заявок (для админа)
-    suspend fun getAllTickets(status: String? = null): List<TicketResponse> {
+    // Метод создания заявки (гость)
+    suspend fun createTicket(token: String, request: CreateTicketRequest): String {
+                return client.post("$baseUrl/api/tickets") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }.bodyAsText() // Просто читаем текстовый ответ сервера, чтобы Ktor не спотыкался о десериализацию
+    }
+
+    // Получение всех заявок (для админа) - ИСПРАВЛЕНО ТУТ
+    suspend fun getAllTickets(token: String, status: String?): List<TicketResponse> {
         return client.get {
             url {
-                appendPathSegments("api", "admin", "tickets")
-                if (status != null) {
-                    parameters.append("status", status)
+                appendPathSegments("api", "admin", "tickets") // Путь настраиваем тут
+                if (!status.isNullOrBlank()) {
+                    parameters.append("status", status)      // Параметр добавляется безопасно
                 }
             }
+            header(HttpHeaders.Authorization, "Bearer $token")
         }.body()
     }
 
     // Обновление статуса заявки
-    suspend fun updateTicketStatus(ticketId: Int, status: String): Map<String, String> {
-        return client.put {
-            url {
-                appendPathSegments("api", "tickets", ticketId.toString(), "status")
-            }
-            contentType(ContentType.Application.Json)
-            setBody(mapOf("status" to status))
-        }.body()
+    suspend fun updateTicketStatus(token: String, ticketId: Int, newStatus: String): String {
+                return client.put("$baseUrl/api/tickets/$ticketId/status") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    // Передаем статус в теле запроса, как просит бэкенд
+                    setBody(mapOf("status" to newStatus))
+                }.body() // Или bodyAsText(), если используешь Ktor 2.x/3.x
     }
 
     // Создание сотрудника (для админа)
@@ -95,6 +97,11 @@ class ApiClient(
             }
             contentType(ContentType.Application.Json)
             setBody(request)
+        }.body()
+    }
+    suspend fun deleteTicket(token: String, ticketId: Int): String {
+        return client.delete("$baseUrl/api/tickets/$ticketId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
         }.body()
     }
 }
