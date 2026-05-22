@@ -1,5 +1,6 @@
 package org.example.project
 
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -826,20 +827,42 @@ fun AdminScreen(
             delay(2000)
             showSnackbar = null
         }
-        Snackbar(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            action = {
-                TextButton(onClick = { showSnackbar = null }) {
-                    Text("OK", color = Color.White)
-                }
-            },
-            containerColor = DarkGray,
-            contentColor = Color.White,
-            shape = RoundedCornerShape(12.dp)
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Text(message)
+            Surface(
+                modifier = Modifier
+                    .padding(horizontal = 32.dp, vertical = 24.dp)
+                    .widthIn(max = 300.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = DarkGray,
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,  // <-- выравниваем по центру
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = message,
+                        fontSize = 13.sp,
+                        color = Color.White,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = { showSnackbar = null }
+                    ) {
+                        Text(
+                            text = "OK",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -872,7 +895,6 @@ fun AdminTicketCard(
     onStatusChange: (String) -> Unit,
     onDelete: () -> Unit
 ) {
-    var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val statusConfig = when (ticket.status) {
@@ -882,15 +904,22 @@ fun AdminTicketCard(
         else -> StatusConfig(ticket.status, NeutralGray, NeutralGray.copy(alpha = 0.1f))
     }
 
-    // Delete Dialog
+    // УМЕНЬШЕННЫЙ И ЦЕНТРАЛИЗОВАННЫЙ ДИАЛОГ УДАЛЕНИЯ
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Удалить заявку?") },
+            title = {
+                Text(
+                    text = "Удалить заявку?",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
             text = {
                 Text(
-                    "Заявка «${ticket.categoryName}» от ${ticket.guestName} будет безвозвратно удалена.",
-                    color = NeutralGray
+                    text = "Заявка будет удалена безвозвратно.",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
@@ -909,7 +938,8 @@ fun AdminTicketCard(
                     Text("Отмена")
                 }
             },
-            shape = RoundedCornerShape(20.dp)
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.widthIn(max = 280.dp)
         )
     }
 
@@ -959,36 +989,20 @@ fun AdminTicketCard(
                     }
                 }
 
-                // Status and Menu Button
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Только статус, без кнопки меню (три точки)
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = statusConfig.backgroundColor,
+                    modifier = Modifier.padding(vertical = 2.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = statusConfig.backgroundColor,
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = statusConfig.text,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = statusConfig.color,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "Действия",
-                            tint = NeutralGray,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Text(
+                        text = statusConfig.text,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = statusConfig.color,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
                 }
             }
 
@@ -1040,7 +1054,7 @@ fun AdminTicketCard(
                     )
                 }
 
-                // Quick Status Action Buttons
+                // Кнопки изменения статуса и удаления (оставлены на карточке)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (ticket.status != "NEW") {
                         IconButton(
@@ -1095,29 +1109,6 @@ fun AdminTicketCard(
                 }
             }
         }
-    }
-
-    // Dropdown Menu
-    DropdownMenu(
-        expanded = showMenu,
-        onDismissRequest = { showMenu = false },
-        modifier = Modifier
-            .shadow(4.dp, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-    ) {
-        DropdownMenuItem(
-            text = { Text("Изменить статус", fontWeight = FontWeight.Medium) },
-            onClick = { showMenu = false },
-            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp)) }
-        )
-        DropdownMenuItem(
-            text = { Text("Удалить заявку", color = ErrorRed) },
-            onClick = {
-                showMenu = false
-                showDeleteDialog = true
-            },
-            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(18.dp)) }
-        )
     }
 }
 
