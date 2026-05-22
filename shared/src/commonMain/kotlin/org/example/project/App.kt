@@ -1,42 +1,67 @@
 package org.example.project
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.example.project.models.*
 import org.example.project.network.ApiClient
 
-// ====== НАСТРОЙКА СИНЕЙ ТЕМЫ (Material 3) ======
-private val DeepBluePrimary = Color(0xFF005FAF)
-private val LightBlueSecondary = Color(0xFFE1F5FE)
-private val MintTertiary = Color(0xFFE8F5E9)
-private val GraySurface = Color(0xFFF5F5F5)
-private val BackgroundColor = Color(0xFFFAFAFA)
+// ====== ПРЕМИУМ МИНИМАЛИСТИЧНАЯ ТЕМА ======
+private val DeepBluePrimary = Color(0xFF0066FF)
+private val DeepBlueDark = Color(0xFF0052CC)
+private val LightBlueBg = Color(0xFFF0F7FF)
+private val SuccessGreen = Color(0xFF34C759)
+private val WarningOrange = Color(0xFFFF9500)
+private val ErrorRed = Color(0xFFFF3B30)
+private val NeutralGray = Color(0xFF8E8E93)
+private val DarkGray = Color(0xFF1C1C1E)
 
-private val BlueColorScheme = lightColorScheme(
+private val PremiumColorScheme = lightColorScheme(
     primary = DeepBluePrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD1E8FF),
-    background = BackgroundColor,
+    primaryContainer = Color(0xFFE3F2FF),
+    secondary = SuccessGreen,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE8F5E9),
+    tertiary = WarningOrange,
+    background = Color(0xFFF8F9FC),
     surface = Color.White,
-    error = Color(0xFFBA1A1A)
+    surfaceVariant = Color(0xFFF2F4F8),
+    error = ErrorRed,
+    outline = Color(0xFFE5E9F0)
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App() {
-    MaterialTheme(colorScheme = BlueColorScheme) {
+    MaterialTheme(colorScheme = PremiumColorScheme, typography = PremiumTypography()) {
         var auth by remember { mutableStateOf<AuthResponse?>(null) }
         var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
         var isLoading by remember { mutableStateOf(false) }
@@ -64,8 +89,7 @@ fun App() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(16.dp)
+                .background(PremiumColorScheme.background)
         ) {
             when {
                 auth == null -> {
@@ -147,6 +171,29 @@ fun App() {
 }
 
 @Composable
+private fun PremiumTypography() = Typography(
+    headlineLarge = MaterialTheme.typography.headlineLarge.copy(
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp
+    ),
+    headlineMedium = MaterialTheme.typography.headlineMedium.copy(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 28.sp
+    ),
+    titleLarge = MaterialTheme.typography.titleLarge.copy(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp
+    ),
+    titleMedium = MaterialTheme.typography.titleMedium.copy(
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp
+    ),
+    bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+    bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+    labelLarge = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
+)
+
+@Composable
 fun LoginScreen(
     isLoading: Boolean,
     errorMessage: String?,
@@ -156,112 +203,204 @@ fun LoginScreen(
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(PremiumColorScheme.background, Color.White),
+                    startY = 0f,
+                    endY = Float.POSITIVE_INFINITY
+                )
+            )
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Logo Area
+            Surface(
+                modifier = Modifier
+                    .size(80.dp)
+                    .shadow(8.dp, CircleShape),
+                shape = CircleShape,
+                color = PremiumColorScheme.primary
             ) {
-                Text(
-                    text = "HotelApp Вход",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    FilterChip(
-                        selected = type == "GUEST",
-                        onClick = { type = "GUEST" },
-                        label = { Text("Я гость") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.White
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    FilterChip(
-                        selected = type == "STAFF",
-                        onClick = { type = "STAFF" },
-                        label = { Text("Сотрудник") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.White
-                        )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Hotel,
+                        contentDescription = "Logo",
+                        tint = Color.White,
+                        modifier = Modifier.size(40.dp)
                     )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-                OutlinedTextField(
-                    value = identifier,
-                    onValueChange = { identifier = it },
-                    label = { Text(if (type == "GUEST") "Номер телефона" else "Логин") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+            Text(
+                text = "Добро пожаловать",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
 
-                if (type != "GUEST") {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Пароль") },
+            Text(
+                text = "Войдите в свой аккаунт",
+                style = MaterialTheme.typography.bodyLarge,
+                color = NeutralGray
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Role Selection
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Вход по номеру телефона, указанному при заселении",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        modifier = Modifier.align(Alignment.Start)
-                    )
-                }
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FilterChip(
+                            selected = type == "GUEST",  // добавлено
+                            onClick = { type = "GUEST" },
+                            label = { Text("Я гость") },
+                            enabled = true,  // добавлено
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = Color.White
+                            )
+                        )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                        FilterChip(
+                            selected = type == "STAFF",  // добавлено
+                            onClick = { type = "STAFF" },
+                            label = { Text("Сотрудник") },
+                            enabled = true,  // добавлено
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
 
-                if (errorMessage != null) {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 12.dp)
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Identifier Field
+                    OutlinedTextField(
+                        value = identifier,
+                        onValueChange = { identifier = it },
+                        label = { Text(if (type == "GUEST") "Номер телефона" else "Логин") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = PremiumColorScheme.primary
+                            )
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PremiumColorScheme.primary,
+                            unfocusedBorderColor = NeutralGray.copy(alpha = 0.3f)
+                        )
                     )
-                }
 
-                Button(
-                    onClick = {
-                        val pass = if (type == "GUEST") null else password
-                        onLogin(type, identifier, pass)
-                    },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !isLoading
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
+                    if (type != "GUEST") {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Пароль") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = PremiumColorScheme.primary
+                                )
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PremiumColorScheme.primary,
+                                unfocusedBorderColor = NeutralGray.copy(alpha = 0.3f)
+                            )
                         )
                     } else {
-                        Text("Войти в личный кабинет", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Вход по номеру телефона, указанному при заселении",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NeutralGray
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (errorMessage != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = ErrorRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = errorMessage,
+                                    color = ErrorRed,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    Button(
+                        onClick = {
+                            val pass = if (type == "GUEST") null else password
+                            onLogin(type, identifier, pass)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PremiumColorScheme.primary
+                        )
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                "Войти",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -278,7 +417,11 @@ fun GuestTicketsScreen(
     onRefresh: () -> Unit,
     onLogout: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -288,10 +431,10 @@ fun GuestTicketsScreen(
                 text = "Мои заявки",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = PremiumColorScheme.primary
             )
-            TextButton(onClick = onLogout) {
-                Text("Выйти", color = Color.Gray)
+            IconButton(onClick = onLogout) {
+                Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = NeutralGray)
             }
         }
 
@@ -304,42 +447,146 @@ fun GuestTicketsScreen(
             Button(
                 onClick = onCreateClick,
                 modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PremiumColorScheme.primary
+                )
             ) {
-                Text("Создать заявку")
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Создать")
             }
 
             OutlinedButton(
                 onClick = onRefresh,
                 modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text("Обновить")
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         when {
             isLoading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = PremiumColorScheme.primary)
                 }
             }
             errorMessage != null -> {
-                Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
+                ) {
+                    Text(
+                        text = errorMessage,
+                        color = ErrorRed,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
             }
             tickets.isEmpty() -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("У вас пока нет активных заявок", color = Color.Gray)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Inbox,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = NeutralGray
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "У вас пока нет заявок",
+                            color = NeutralGray,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Нажмите «Создать», чтобы оставить заявку",
+                            color = NeutralGray.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
             else -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
                     items(tickets) { ticket ->
-                        TicketCard(ticket = ticket)
+                        GuestTicketCard(ticket = ticket)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun GuestTicketCard(ticket: TicketResponse) {
+    val statusConfig = when (ticket.status) {
+        "NEW" -> StatusConfig("Новая", PremiumColorScheme.primary, PremiumColorScheme.primaryContainer)
+        "IN_PROGRESS" -> StatusConfig("В работе", WarningOrange, WarningOrange.copy(alpha = 0.1f))
+        "COMPLETED" -> StatusConfig("Выполнена", SuccessGreen, SuccessGreen.copy(alpha = 0.1f))
+        else -> StatusConfig(ticket.status, NeutralGray, NeutralGray.copy(alpha = 0.1f))
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = ticket.categoryName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DarkGray
+                )
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = statusConfig.backgroundColor,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = statusConfig.text,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = statusConfig.color,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = ticket.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = NeutralGray
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = ticket.createdAt,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeutralGray.copy(alpha = 0.6f),
+                    fontSize = 11.sp
+                )
             }
         }
     }
@@ -347,167 +594,11 @@ fun GuestTicketsScreen(
 
 @Composable
 fun TicketCard(ticket: TicketResponse) {
-    val cardColor = when (ticket.status) {
-        "NEW" -> LightBlueSecondary
-        "IN_PROGRESS" -> MintTertiary
-        "COMPLETED" -> GraySurface
-        else -> Color.White
-    }
-
-    val statusText = when (ticket.status) {
-        "NEW" -> "Новая"
-        "IN_PROGRESS" -> "В работе"
-        "COMPLETED" -> "Выполнена"
-        else -> ticket.status
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = ticket.categoryName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = when (ticket.status) {
-                        "NEW" -> DeepBluePrimary
-                        "IN_PROGRESS" -> Color(0xFF2E7D32)
-                        else -> Color.Gray
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = ticket.description, style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Создана: ${ticket.createdAt}",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray
-            )
-        }
-    }
+    GuestTicketCard(ticket = ticket)
 }
 
-// ====== ИСПРАВЛЕНО: ТЕПЕРЬ ТУТ ВЫПАДАЮЩИЙ СПИСОК (DROPDOWN MENU) ======
+// ====== НОВЫЙ ПРЕМИУМ ADMIN SCREEN С ИЗМЕНЕНИЕМ СТАТУСА И УДАЛЕНИЕМ ======
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CreateTicketScreen(
-    onCreate: (categoryId: Int, description: String) -> Unit,
-    onBack: () -> Unit
-) {
-    // Список категорий, соответствующий твоей структуре БД
-    val categories = listOf(
-        1 to "Уборка номера",
-        2 to "Технический ремонт",
-        3 to "Рум-сервис",
-        4 to "Вопросы"
-    )
-
-    var expanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf(categories[0]) } // По умолчанию первая
-    var description by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Новая заявка",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(text = "Выберите категорию:", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Material 3 Выпадающий список (ExposedDropdownMenuBox)
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            OutlinedTextField(
-                value = selectedCategory.second, // Отображаем название текстом
-                onValueChange = {},
-                readOnly = true, // Запрещаем ввод с клавиатуры
-                label = { Text("Категория услуги") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                categories.forEach { category ->
-                    DropdownMenuItem(
-                        text = { Text(category.second) },
-                        onClick = {
-                            selectedCategory = category
-                            expanded = false
-                        },
-                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = description,
-            onValueChange = { description = it },
-            label = { Text("Что необходимо сделать?") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 4,
-            shape = RoundedCornerShape(12.dp)
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = onBack,
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Назад")
-            }
-
-            Button(
-                onClick = {
-                    if (description.isNotBlank()) {
-                        onCreate(selectedCategory.first, description) // Передаем чистый ID в бэкенд
-                    }
-                },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Отправить")
-            }
-        }
-    }
-}
-
 @Composable
 fun AdminScreen(
     apiClient: ApiClient,
@@ -517,132 +608,647 @@ fun AdminScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var statusFilter by remember { mutableStateOf<String?>(null) }
+    var showSnackbar by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
-    LaunchedEffect(statusFilter) {
-        isLoading = true
-        try {
-            tickets = apiClient.getAllTickets(statusFilter)
-            errorMessage = null
-        } catch (e: Exception) {
-            errorMessage = "Ошибка загрузки: ${e.message}"
-        } finally {
-            isLoading = false
+    fun loadTickets() {
+        scope.launch {
+            isLoading = true
+            try {
+                tickets = apiClient.getAllTickets(statusFilter)
+                errorMessage = null
+            } catch (e: Exception) {
+                errorMessage = "Ошибка загрузки: ${e.message}"
+            } finally {
+                isLoading = false
+            }
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
+    LaunchedEffect(statusFilter) {
+        loadTickets()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(PremiumColorScheme.background)
+    ) {
+        // Header
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            color = Color.White,
+            shadowElevation = 4.dp
         ) {
-            Text(
-                text = "Админ-Панель",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            TextButton(onClick = onLogout) {
-                Text("Выйти", color = Color.Gray)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ====== ИСПРАВЛЕНО: ТЕПЕРЬ ТЕКСТ «В РАБОТЕ» НЕ СЪЕЗЖАЕТ ======
-        // Добавили горизонтальный скролл. На маленьких экранах чипы можно плавно листать пальцем, они сохраняют красивую ширину
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val filters = listOf(null to "Все", "NEW" to "Новые", "IN_PROGRESS" to "В работе", "COMPLETED" to "Готово")
-            filters.forEach { (filter, label) ->
-                FilterChip(
-                    selected = statusFilter == filter,
-                    onClick = { statusFilter = filter },
-                    label = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = PremiumColorScheme.primaryContainer
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Dashboard,
+                                contentDescription = null,
+                                tint = PremiumColorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
                         Text(
-                            text = label,
-                            maxLines = 1 // Строго запрещаем перенос на другую строку
+                            text = "Управление заявками",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkGray
                         )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White
-                    )
-                )
+                        Text(
+                            text = "${tickets.size} ${getDeclension(tickets.size)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NeutralGray
+                        )
+                    }
+                }
+                IconButton(onClick = onLogout) {
+                    Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = NeutralGray)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        // Filter Chips with horizontal scroll
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn() + slideInVertically(),
+            exit = fadeOut() + slideOutVertically()
+        ) {
+            Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                Text(
+                    text = "Фильтр",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = NeutralGray,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val filters = listOf(
+                        null to "Все",
+                        "NEW" to "🆕 Новые",
+                        "IN_PROGRESS" to "⚙️ В работе",
+                        "COMPLETED" to "✅ Выполнены"
+                    )
+                    filters.forEach { (filter, label) ->
+                        FilterChip(
+                            selected = statusFilter == filter,  // добавлено
+                            onClick = { statusFilter = filter },
+                            label = { Text(label, maxLines = 1) },
+                            enabled = true,  // добавлено
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
             }
-        } else if (errorMessage != null) {
-            Text(text = errorMessage!!, color = MaterialTheme.colorScheme.error)
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(tickets) { ticket ->
-                    AdminTicketCard(ticket = ticket)
+        }
+
+        // Content
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = PremiumColorScheme.primary)
+                    }
+                }
+                errorMessage != null -> {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = ErrorRed)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(text = errorMessage!!, color = ErrorRed)
+                        }
+                    }
+                }
+                tickets.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Inbox,
+                                contentDescription = null,
+                                modifier = Modifier.size(80.dp),
+                                tint = NeutralGray.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Нет заявок",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = NeutralGray
+                            )
+                            Text(
+                                text = statusFilter?.let { "В категории «$it»" } ?: "Список пуст",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NeutralGray.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                    ) {
+                        items(tickets, key = { it.id }) { ticket ->
+                            AdminTicketCard(
+                                ticket = ticket,
+                                onStatusChange = { newStatus ->
+                                    scope.launch {
+                                        isLoading = true
+                                        try {
+                                            apiClient.updateTicketStatus(ticket.id, newStatus)
+                                            showSnackbar = "Статус изменён на ${getStatusName(newStatus)}"
+                                            loadTickets()
+                                        } catch (e: Exception) {
+                                            showSnackbar = "Ошибка: ${e.message}"
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        isLoading = true
+                                        try {
+                                            apiClient.deleteTicket(ticket.id)
+                                            showSnackbar = "Заявка #${ticket.id} удалена"
+                                            loadTickets()
+                                        } catch (e: Exception) {
+                                            showSnackbar = "Ошибка удаления: ${e.message}"
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+
+    // Snackbar
+    showSnackbar?.let { message ->
+        LaunchedEffect(message) {
+            delay(2000)
+            showSnackbar = null
+        }
+        Snackbar(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            action = {
+                TextButton(onClick = { showSnackbar = null }) {
+                    Text("OK", color = Color.White)
+                }
+            },
+            containerColor = DarkGray,
+            contentColor = Color.White,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(message)
+        }
+    }
 }
 
+private fun getDeclension(count: Int): String {
+    return when {
+        count % 10 == 1 && count % 100 != 11 -> "заявка"
+        count % 10 in 2..4 && count % 100 !in 12..14 -> "заявки"
+        else -> "заявок"
+    }
+}
+
+private fun getStatusName(status: String): String = when (status) {
+    "NEW" -> "Новая"
+    "IN_PROGRESS" -> "В работе"
+    "COMPLETED" -> "Выполнена"
+    else -> status
+}
+
+data class StatusConfig(
+    val text: String,
+    val color: Color,
+    val backgroundColor: Color
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminTicketCard(ticket: TicketResponse) {
+fun AdminTicketCard(
+    ticket: TicketResponse,
+    onStatusChange: (String) -> Unit,
+    onDelete: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    val statusConfig = when (ticket.status) {
+        "NEW" -> StatusConfig("Новая", PremiumColorScheme.primary, PremiumColorScheme.primaryContainer)
+        "IN_PROGRESS" -> StatusConfig("В работе", WarningOrange, WarningOrange.copy(alpha = 0.1f))
+        "COMPLETED" -> StatusConfig("Выполнена", SuccessGreen, SuccessGreen.copy(alpha = 0.1f))
+        else -> StatusConfig(ticket.status, NeutralGray, NeutralGray.copy(alpha = 0.1f))
+    }
+
+    // Delete Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Удалить заявку?") },
+            text = {
+                Text(
+                    "Заявка «${ticket.categoryName}» от ${ticket.guestName} будет безвозвратно удалена.",
+                    color = NeutralGray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = ErrorRed)
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Отмена")
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically // Выравниваем текст по центру строки
+                verticalAlignment = Alignment.Top
             ) {
-                // Ограничиваем имя гостя, чтобы оно не выталкивало статус
-                Text(
-                    text = "${ticket.guestName} (Комн. ${ticket.roomNumber})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when (ticket.status) {
-                        "NEW" -> "Новая"
-                        "IN_PROGRESS" -> "В работе"
-                        "COMPLETED" -> "Выполнена"
-                        else -> ticket.status
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1, // Чтобы статус внутри карточки тоже никогда не рвало на куски
-                    color = when (ticket.status) {
-                        "NEW" -> DeepBluePrimary
-                        "IN_PROGRESS" -> Color(0xFF2E7D32)
-                        else -> Color.Gray
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.size(32.dp),
+                            shape = CircleShape,
+                            color = PremiumColorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = ticket.guestName.take(1).uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = PremiumColorScheme.primary
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = ticket.guestName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DarkGray
+                            )
+                            Text(
+                                text = "Комната ${ticket.roomNumber}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NeutralGray
+                            )
+                        }
                     }
-                )
+                }
+
+                // Status and Menu Button
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = statusConfig.backgroundColor,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = statusConfig.text,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = statusConfig.color,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Действия",
+                            tint = NeutralGray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
-                text = "Категория: ${ticket.categoryName}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
+                text = ticket.categoryName,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = DarkGray.copy(alpha = 0.7f)
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = ticket.description, style = MaterialTheme.typography.bodyMedium)
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = ticket.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = NeutralGray
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.background(
+                        PremiumColorScheme.primaryContainer,
+                        RoundedCornerShape(8.dp)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(14.dp)
+                            .padding(start = 8.dp),
+                        tint = PremiumColorScheme.primary
+                    )
+                    Text(
+                        text = ticket.createdAt,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = PremiumColorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontSize = 11.sp
+                    )
+                }
+
+                // Quick Status Action Buttons
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (ticket.status != "NEW") {
+                        IconButton(
+                            onClick = { onStatusChange("NEW") },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.RadioButtonUnchecked,
+                                contentDescription = "Новая",
+                                tint = PremiumColorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    if (ticket.status != "IN_PROGRESS") {
+                        IconButton(
+                            onClick = { onStatusChange("IN_PROGRESS") },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "В работе",
+                                tint = WarningOrange,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    if (ticket.status != "COMPLETED") {
+                        IconButton(
+                            onClick = { onStatusChange("COMPLETED") },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Выполнена",
+                                tint = SuccessGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Удалить",
+                            tint = ErrorRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Dropdown Menu
+    DropdownMenu(
+        expanded = showMenu,
+        onDismissRequest = { showMenu = false },
+        modifier = Modifier
+            .shadow(4.dp, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+    ) {
+        DropdownMenuItem(
+            text = { Text("Изменить статус", fontWeight = FontWeight.Medium) },
+            onClick = { showMenu = false },
+            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp)) }
+        )
+        DropdownMenuItem(
+            text = { Text("Удалить заявку", color = ErrorRed) },
+            onClick = {
+                showMenu = false
+                showDeleteDialog = true
+            },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(18.dp)) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateTicketScreen(
+    onCreate: (categoryId: Int, description: String) -> Unit,
+    onBack: () -> Unit
+) {
+    val categories = listOf(
+        1 to "🛏️ Уборка номера",
+        2 to "🔧 Технический ремонт",
+        3 to "🍽️ Рум-сервис",
+        4 to "❓ Вопросы и пожелания"
+    )
+
+    var expanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf(categories[0]) }
+    var description by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+            }
+            Text(
+                text = "Новая заявка",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(48.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "Категория",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            color = DarkGray
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedCategory.second,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Выберите услугу") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PremiumColorScheme.primary
+                )
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.clip(RoundedCornerShape(12.dp))
+            ) {
+                categories.forEach { category ->
+                    DropdownMenuItem(
+                        text = { Text(category.second) },
+                        onClick = {
+                            selectedCategory = category
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "Описание",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            color = DarkGray
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it },
+            label = { Text("Что необходимо сделать?") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5,
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PremiumColorScheme.primary
+            ),
+            placeholder = { Text("Опишите вашу проблему или пожелание...", color = NeutralGray) }
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Button(
+            onClick = {
+                if (description.isNotBlank()) {
+                    onCreate(selectedCategory.first, description)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            enabled = description.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = PremiumColorScheme.primary
+            )
+        ) {
+            Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Отправить заявку", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

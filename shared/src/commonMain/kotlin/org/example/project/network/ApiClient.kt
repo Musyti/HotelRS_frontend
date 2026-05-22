@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
@@ -19,6 +20,12 @@ import org.example.project.models.*
 class ApiClient(
     private val baseUrl: String
 ) {
+    private var authToken: String? = null
+
+    fun setAuthToken(token: String) {
+        this.authToken = token
+    }
+
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(Json {
@@ -28,18 +35,27 @@ class ApiClient(
         }
         defaultRequest {
             url(baseUrl)
+            // Добавляем заголовок авторизации, если токен есть
+            authToken?.let {
+                header("Authorization", "Bearer $it")
+            }
         }
     }
 
-    // Авторизация
+    // Авторизация - сохраняем токен
     suspend fun login(request: LoginRequest): AuthResponse {
-        return client.post {
+        val response = client.post {
             url {
                 appendPathSegments("api", "auth", "login")
             }
             contentType(ContentType.Application.Json)
             setBody(request)
-        }.body()
+        }.body<AuthResponse>()
+
+        // Сохраняем токен для последующих запросов
+        setAuthToken(response.token)
+
+        return response
     }
 
     // Создание заявки (для гостя)
@@ -64,7 +80,7 @@ class ApiClient(
         }.body()
     }
 
-    // Получение всех заявок (для админа)
+    // Получение всех заявок (для админа) - теперь с токеном
     suspend fun getAllTickets(status: String? = null): List<TicketResponse> {
         return client.get {
             url {
@@ -84,6 +100,15 @@ class ApiClient(
             }
             contentType(ContentType.Application.Json)
             setBody(mapOf("status" to status))
+        }.body()
+    }
+
+    // Удаление заявки
+    suspend fun deleteTicket(ticketId: Int): Map<String, String> {
+        return client.delete {
+            url {
+                appendPathSegments("api", "tickets", ticketId.toString())
+            }
         }.body()
     }
 

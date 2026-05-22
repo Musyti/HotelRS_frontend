@@ -46,6 +46,7 @@ kotlin {
             implementation("io.ktor:ktor-client-core:3.4.3")
             implementation("io.ktor:ktor-client-content-negotiation:3.4.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.4.3")
+            implementation("org.jetbrains.compose.material:material-icons-extended:1.6.10")
         }
         jvmMain.dependencies {
             implementation("io.ktor:ktor-client-cio:3.4.3")
