@@ -1,5 +1,8 @@
 package org.example.project
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -895,6 +898,7 @@ fun AdminTicketCard(
     onStatusChange: (String) -> Unit,
     onDelete: () -> Unit
 ) {
+    var showDetailsDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val statusConfig = when (ticket.status) {
@@ -904,7 +908,164 @@ fun AdminTicketCard(
         else -> StatusConfig(ticket.status, NeutralGray, NeutralGray.copy(alpha = 0.1f))
     }
 
-    // УМЕНЬШЕННЫЙ И ЦЕНТРАЛИЗОВАННЫЙ ДИАЛОГ УДАЛЕНИЯ
+    // Диалог с деталями заявки
+    if (showDetailsDialog) {
+        AlertDialog(
+            onDismissRequest = { showDetailsDialog = false },
+            title = {
+                Text(
+                    text = "Детали заявки",
+                    fontWeight = FontWeight.Bold,
+                    color = PremiumColorScheme.primary
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    // Гость
+                    Text(
+                        text = "Гость",
+                        fontSize = 12.sp,
+                        color = NeutralGray
+                    )
+                    Text(
+                        text = ticket.guestName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = DarkGray,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // Номер комнаты
+                    Text(
+                        text = "Номер комнаты",
+                        fontSize = 12.sp,
+                        color = NeutralGray
+                    )
+                    Text(
+                        text = ticket.roomNumber,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = DarkGray,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // Категория
+                    Text(
+                        text = "Категория",
+                        fontSize = 12.sp,
+                        color = NeutralGray
+                    )
+                    Text(
+                        text = ticket.categoryName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = DarkGray,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // Статус
+                    Text(
+                        text = "Статус",
+                        fontSize = 12.sp,
+                        color = NeutralGray
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = statusConfig.backgroundColor,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = statusConfig.text,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = statusConfig.color,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    // Описание
+                    Text(
+                        text = "Описание",
+                        fontSize = 12.sp,
+                        color = NeutralGray,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                    Text(
+                        text = ticket.description,
+                        fontSize = 14.sp,
+                        color = DarkGray,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    // Дата создания
+                    Text(
+                        text = "Дата создания",
+                        fontSize = 12.sp,
+                        color = NeutralGray,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                    Text(
+                        text = ticket.createdAt,
+                        fontSize = 14.sp,
+                        color = NeutralGray,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDetailsDialog = false }) {
+                    Text("Закрыть")
+                }
+            },
+            dismissButton = {
+                // Кнопки действий в диалоге (опционально)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (ticket.status != "COMPLETED") {
+                        TextButton(
+                            onClick = {
+                                showDetailsDialog = false
+                                onStatusChange("COMPLETED")
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = SuccessGreen)
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Завершить")
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            showDetailsDialog = false
+                            showDeleteDialog = true
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = ErrorRed)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Удалить")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.widthIn(max = 400.dp)
+        )
+    }
+
+    // Диалог удаления
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -946,11 +1107,17 @@ fun AdminTicketCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
+            .animateContentSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { showDetailsDialog = true }
+                )
+            },
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
+        // ... остальной код карточки без изменений ...
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -989,7 +1156,6 @@ fun AdminTicketCard(
                     }
                 }
 
-                // Только статус, без кнопки меню (три точки)
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = statusConfig.backgroundColor,
@@ -1020,7 +1186,9 @@ fun AdminTicketCard(
             Text(
                 text = ticket.description,
                 style = MaterialTheme.typography.bodyMedium,
-                color = NeutralGray
+                color = NeutralGray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -1054,7 +1222,7 @@ fun AdminTicketCard(
                     )
                 }
 
-                // Кнопки изменения статуса и удаления (оставлены на карточке)
+                // Кнопки быстрого действия
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (ticket.status != "NEW") {
                         IconButton(
