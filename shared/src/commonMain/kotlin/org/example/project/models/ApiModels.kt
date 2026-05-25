@@ -52,7 +52,36 @@ data class CreateStaffRequest(
     val role: String
 )
 
+// Модели для пользователей
+@Serializable
+data class Guest(
+    val id: Int,
+    val fullName: String,
+    val phone: String,
+    val roomNumber: String,
+    val isActive: Boolean
+)
 
+@Serializable
+data class StaffUser(
+    val id: Int,
+    val username: String,
+    val role: String
+)
+
+@Serializable
+data class UpdateGuestRequest(
+    val fullName: String,
+    val phone: String,
+    val roomNumber: String,
+    val isActive: Boolean
+)
+
+@Serializable
+data class UpdateStaffRequest(
+    val username: String,
+    val role: String
+)
 
 // Для обновления статуса
 @Serializable

@@ -121,10 +121,11 @@ fun App() {
                     )
                 }
 
-                auth!!.role == "ADMIN" || auth!!.role == "STAFF" -> {
+                auth!!.role == "ADMIN" || auth!!.role == "STAFF" || auth!!.role == "CLEANER" || auth!!.role == "MASTER" -> {
                     AdminScreen(
                         apiClient = apiClient,
-                        onLogout = { auth = null }
+                        onLogout = { auth = null },
+                        currentUserRole = auth!!.role
                     )
                 }
 
@@ -607,7 +608,8 @@ fun TicketCard(ticket: TicketResponse) {
 @Composable
 fun AdminScreen(
     apiClient: ApiClient,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    currentUserRole: String  // <-- ДОБАВЬТЕ ЭТОТ ПАРАМЕТР
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
@@ -617,11 +619,18 @@ fun AdminScreen(
     var showSnackbar by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
+    val isAdmin = currentUserRole == "ADMIN"
+
     fun loadTickets() {
         scope.launch {
             isLoading = true
             try {
-                tickets = apiClient.getAllTickets(statusFilter)
+                // Для сотрудников используем специальный эндпоинт
+                tickets = if (isAdmin) {
+                    apiClient.getAllTickets(statusFilter)
+                } else {
+                    apiClient.getStaffTickets(statusFilter)
+                }
                 errorMessage = null
             } catch (e: Exception) {
                 errorMessage = "Ошибка загрузки: ${e.message}"
@@ -670,85 +679,91 @@ fun AdminScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Админ-панель",
+                            text = if (isAdmin) "Админ-панель" else "Панель сотрудника",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = DarkGray
                         )
                         Text(
-                            text = if (selectedTab == 0) "${tickets.size} ${getDeclension(tickets.size)}" else "Управление пользователями",
+                            text = "${tickets.size} ${getDeclension(tickets.size)}",
                             color = NeutralGray,
                             fontSize = 12.sp
                         )
                     }
                 }
                 IconButton(onClick = onLogout) {
-                    Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = NeutralGray)  // <-- Icons.Default
+                    Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = NeutralGray)
                 }
             }
         }
 
-        // Табы - используем PrimaryTabRow
-        PrimaryTabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = Color.White,
-            contentColor = PremiumColorScheme.primary
-        ) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Заявки") },
-                icon = { Icon(Icons.Default.List, contentDescription = null) }  // <-- Icons.Default
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Пользователи") },
-                icon = { Icon(Icons.Default.People, contentDescription = null) }
-            )
+        // Табы - показываем только если пользователь ADMIN
+        if (isAdmin) {
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.White,
+                contentColor = PremiumColorScheme.primary
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Заявки") },
+                    icon = { Icon(Icons.Default.List, contentDescription = null) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Пользователи") },
+                    icon = { Icon(Icons.Default.People, contentDescription = null) }
+                )
+            }
         }
 
-        // Контент вкладок
-        when (selectedTab) {
-            0 -> TicketsTab(
-                tickets = tickets,
-                isLoading = isLoading,
-                errorMessage = errorMessage,
-                statusFilter = statusFilter,
-                onStatusFilterChange = { statusFilter = it },
-                onStatusChange = { ticket, newStatus ->
-                    scope.launch {
-                        isLoading = true
-                        try {
-                            apiClient.updateTicketStatus(ticket.id, newStatus)
-                            showSnackbar = "Статус изменён на ${getStatusName(newStatus)}"
-                            loadTickets()
-                        } catch (e: Exception) {
-                            showSnackbar = "Ошибка: ${e.message}"
-                        } finally {
-                            isLoading = false
+        // Контент
+        when {
+            !isAdmin || selectedTab == 0 -> {
+                StaffTicketsContent(
+                    tickets = tickets,
+                    isLoading = isLoading,
+                    errorMessage = errorMessage,
+                    statusFilter = statusFilter,
+                    onStatusFilterChange = { statusFilter = it },
+                    onStatusChange = { ticket, newStatus ->
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                apiClient.updateTicketStatus(ticket.id, newStatus)
+                                showSnackbar = "Статус изменён на ${getStatusName(newStatus)}"
+                                loadTickets()
+                            } catch (e: Exception) {
+                                showSnackbar = "Ошибка: ${e.message}"
+                            } finally {
+                                isLoading = false
+                            }
                         }
-                    }
-                },
-                onDelete = { ticket ->
-                    scope.launch {
-                        isLoading = true
-                        try {
-                            apiClient.deleteTicket(ticket.id)
-                            showSnackbar = "Заявка #${ticket.id} удалена"
-                            loadTickets()
-                        } catch (e: Exception) {
-                            showSnackbar = "Ошибка удаления: ${e.message}"
-                        } finally {
-                            isLoading = false
+                    },
+                    onDelete = if (isAdmin) { { ticket ->
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                apiClient.deleteTicket(ticket.id)
+                                showSnackbar = "Заявка #${ticket.id} удалена"
+                                loadTickets()
+                            } catch (e: Exception) {
+                                showSnackbar = "Ошибка удаления: ${e.message}"
+                            } finally {
+                                isLoading = false
+                            }
                         }
-                    }
-                }
-            )
-            1 -> UsersTab(
-                apiClient = apiClient,
-                onShowSnackbar = { message -> showSnackbar = message }
-            )
+                    } } else null
+                )
+            }
+            selectedTab == 1 && isAdmin -> {
+                UsersTab(
+                    apiClient = apiClient,
+                    onShowSnackbar = { message -> showSnackbar = message }
+                )
+            }
         }
     }
 
@@ -784,6 +799,99 @@ fun AdminScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     TextButton(onClick = { showSnackbar = null }) {
                         Text("OK", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StaffTicketsContent(
+    tickets: List<TicketResponse>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    statusFilter: String?,
+    onStatusFilterChange: (String?) -> Unit,
+    onStatusChange: (TicketResponse, String) -> Unit,
+    onDelete: ((TicketResponse) -> Unit)? = null
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Фильтры
+        Column(modifier = Modifier.padding(vertical = 16.dp)) {
+            Text(
+                text = "Фильтр",
+                color = NeutralGray,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val filters = listOf(
+                    null to "Все",
+                    "NEW" to "Новые",
+                    "IN_PROGRESS" to "В работе",
+                    "COMPLETED" to "Выполнены"
+                )
+                filters.forEach { (filter, label) ->
+                    FilterChip(
+                        selected = statusFilter == filter,
+                        onClick = { onStatusFilterChange(filter) },
+                        label = { Text(label) },
+                        enabled = true,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PremiumColorScheme.primary,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+        }
+
+        // Список заявок
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = PremiumColorScheme.primary)
+                    }
+                }
+                errorMessage != null -> {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
+                    ) {
+                        Text(text = errorMessage, color = ErrorRed, modifier = Modifier.padding(16.dp))
+                    }
+                }
+                tickets.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("📭", fontSize = 64.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(text = "Нет заявок", color = NeutralGray)
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                    ) {
+                        items(tickets, key = { it.id }) { ticket ->
+                            AdminTicketCard(
+                                ticket = ticket,
+                                onStatusChange = { newStatus -> onStatusChange(ticket, newStatus) },
+                                onDelete = if (onDelete != null) { { onDelete(ticket) } } else null
+                            )
+                        }
                     }
                 }
             }
@@ -891,144 +999,185 @@ fun UsersTab(
 ) {
     var showCreateGuestDialog by remember { mutableStateOf(false) }
     var showCreateStaffDialog by remember { mutableStateOf(false) }
+    var showEditGuestDialog by remember { mutableStateOf<Guest?>(null) }
+    var showEditStaffDialog by remember { mutableStateOf<StaffUser?>(null) }
+
+    var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
+    var staff by remember { mutableStateOf<List<StaffUser>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 - гости, 1 - сотрудники
+
     val scope = rememberCoroutineScope()
+
+    fun loadUsers() {
+        scope.launch {
+            isLoading = true
+            try {
+                val guestsResult = apiClient.getAllGuests()
+                val staffResult = apiClient.getAllStaff()
+                guests = guestsResult
+                staff = staffResult
+            } catch (e: Exception) {
+                onShowSnackbar("Ошибка загрузки: ${e.message}")
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadUsers()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(16.dp)
     ) {
-        // Заголовок
-        Text(
-            text = "Управление пользователями",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = PremiumColorScheme.primary,
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
-
-        // Карточка добавления гостя
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { showCreateGuestDialog = true })
-                },
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+        // Заголовок и кнопки добавления
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    color = PremiumColorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.PersonAdd,
-                            contentDescription = null,
-                            tint = PremiumColorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+            Text(
+                text = "Управление пользователями",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
+            Row {
+                IconButton(onClick = { showCreateGuestDialog = true }) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = "Добавить гостя", tint = PremiumColorScheme.primary)
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Добавить гостя",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = DarkGray
-                    )
-                    Text(
-                        text = "Создать нового гостя в системе",
-                        fontSize = 14.sp,
-                        color = NeutralGray
-                    )
+                IconButton(onClick = { showCreateStaffDialog = true }) {
+                    Icon(Icons.Default.Badge, contentDescription = "Добавить сотрудника", tint = PremiumColorScheme.secondary)
                 }
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = NeutralGray
-                )
+                IconButton(onClick = { loadUsers() }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Обновить", tint = NeutralGray)
+                }
             }
         }
 
-        // Карточка добавления сотрудника
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { showCreateStaffDialog = true })
-                },
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Табы для переключения между гостями и сотрудниками
+        SecondaryTabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.White,
+            contentColor = PremiumColorScheme.primary
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    color = PremiumColorScheme.secondaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Badge,
-                            contentDescription = null,
-                            tint = PremiumColorScheme.secondary,
-                            modifier = Modifier.size(24.dp)
-                        )
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("Гости (${guests.size})") },
+                icon = { Icon(Icons.Default.People, contentDescription = null) }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text("Сотрудники (${staff.size})") },
+                icon = { Icon(Icons.Default.Badge, contentDescription = null) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Список пользователей
+        when {
+            isLoading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = PremiumColorScheme.primary)
+                }
+            }
+            selectedTab == 0 -> {
+                if (guests.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("👥", fontSize = 48.sp)
+                            Text("Нет гостей", color = NeutralGray)
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(guests, key = { it.id }) { guest ->
+                            UserCard(
+                                title = guest.fullName,
+                                subtitle = "Телефон: ${guest.phone} | Комната: ${guest.roomNumber}",
+                                status = if (guest.isActive) "Активен" else "Неактивен",
+                                statusColor = if (guest.isActive) SuccessGreen else NeutralGray,
+                                onEdit = { showEditGuestDialog = guest },
+                                onDelete = {
+                                    scope.launch {
+                                        try {
+                                            apiClient.deleteGuest(guest.id)
+                                            onShowSnackbar("Гость ${guest.fullName} удален")
+                                            loadUsers()
+                                        } catch (e: Exception) {
+                                            onShowSnackbar("Ошибка: ${e.message}")
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Добавить сотрудника",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = DarkGray
-                    )
-                    Text(
-                        text = "Создать сотрудника с определенной ролью",
-                        fontSize = 14.sp,
-                        color = NeutralGray
-                    )
+            }
+            else -> {
+                if (staff.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("👔", fontSize = 48.sp)
+                            Text("Нет сотрудников", color = NeutralGray)
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(staff, key = { it.id }) { staffMember ->
+                            val isAdmin = staffMember.role == "ADMIN"
+                            UserCard(
+                                title = staffMember.username,
+                                subtitle = "Роль: ${getRoleDisplayName(staffMember.role)}",
+                                status = "Сотрудник",
+                                statusColor = PremiumColorScheme.primary,
+                                onEdit = if (!isAdmin) { { showEditStaffDialog = staffMember } } else null,
+                                onDelete = if (!isAdmin) {
+                                    {
+                                        scope.launch {
+                                            try {
+                                                apiClient.deleteStaff(staffMember.id)
+                                                onShowSnackbar("Сотрудник ${staffMember.username} удален")
+                                                loadUsers()
+                                            } catch (e: Exception) {
+                                                onShowSnackbar("Ошибка: ${e.message}")
+                                            }
+                                        }
+                                    }
+                                } else null,
+                                isAdmin = isAdmin
+                            )
+                        }
+                    }
                 }
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = NeutralGray
-                )
             }
         }
     }
 
-    // Диалог создания гостя - передаем scope
+    // Диалоги создания и редактирования (как были ранее)
     if (showCreateGuestDialog) {
         CreateGuestDialog(
             onDismiss = { showCreateGuestDialog = false },
             onCreate = { guest ->
-                // Запускаем корутину здесь, в колбэке
                 scope.launch {
                     try {
-                        val response = apiClient.createGuest(guest)
+                        apiClient.createGuest(guest)
                         onShowSnackbar("Гость ${guest.fullName} успешно создан")
                         showCreateGuestDialog = false
+                        loadUsers()
                     } catch (e: Exception) {
                         onShowSnackbar("Ошибка: ${e.message}")
                     }
@@ -1037,17 +1186,16 @@ fun UsersTab(
         )
     }
 
-    // Диалог создания сотрудника - передаем scope
     if (showCreateStaffDialog) {
         CreateStaffDialog(
             onDismiss = { showCreateStaffDialog = false },
-            onCreate = { staff ->
-                // Запускаем корутину здесь, в колбэке
+            onCreate = { staffMember ->
                 scope.launch {
                     try {
-                        val response = apiClient.createStaff(staff)
-                        onShowSnackbar("Сотрудник ${staff.username} успешно создан")
+                        apiClient.createStaff(staffMember)
+                        onShowSnackbar("Сотрудник ${staffMember.username} успешно создан")
                         showCreateStaffDialog = false
+                        loadUsers()
                     } catch (e: Exception) {
                         onShowSnackbar("Ошибка: ${e.message}")
                     }
@@ -1055,6 +1203,345 @@ fun UsersTab(
             }
         )
     }
+
+    if (showEditGuestDialog != null) {
+        EditGuestDialog(
+            guest = showEditGuestDialog!!,
+            onDismiss = { showEditGuestDialog = null },
+            onUpdate = { updatedGuest ->
+                scope.launch {
+                    try {
+                        apiClient.updateGuest(updatedGuest.id, UpdateGuestRequest(
+                            fullName = updatedGuest.fullName,
+                            phone = updatedGuest.phone,
+                            roomNumber = updatedGuest.roomNumber,
+                            isActive = updatedGuest.isActive
+                        ))
+                        onShowSnackbar("Гость ${updatedGuest.fullName} обновлен")
+                        showEditGuestDialog = null
+                        loadUsers()
+                    } catch (e: Exception) {
+                        onShowSnackbar("Ошибка: ${e.message}")
+                    }
+                }
+            }
+        )
+    }
+
+    if (showEditStaffDialog != null) {
+        EditStaffDialog(
+            staff = showEditStaffDialog!!,
+            onDismiss = { showEditStaffDialog = null },
+            onUpdate = { updatedStaff ->
+                scope.launch {
+                    try {
+                        apiClient.updateStaff(updatedStaff.id, UpdateStaffRequest(
+                            username = updatedStaff.username,
+                            role = updatedStaff.role
+                        ))
+                        onShowSnackbar("Сотрудник ${updatedStaff.username} обновлен")
+                        showEditStaffDialog = null
+                        loadUsers()
+                    } catch (e: Exception) {
+                        onShowSnackbar("Ошибка: ${e.message}")
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun UserCard(
+    title: String,
+    subtitle: String,
+    status: String,
+    statusColor: Color,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    isAdmin: Boolean = false
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = DarkGray
+                    )
+                    if (isAdmin) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = PremiumColorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "ADMIN",
+                                fontSize = 10.sp,
+                                color = PremiumColorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = subtitle,
+                    fontSize = 13.sp,
+                    color = NeutralGray
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = statusColor.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        text = status,
+                        fontSize = 11.sp,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Row {
+                if (onEdit != null) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Редактировать",
+                            tint = PremiumColorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                if (onDelete != null) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Удалить",
+                            tint = ErrorRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun getRoleDisplayName(role: String): String = when (role) {
+    "ADMIN" -> "Администратор"
+    "STAFF" -> "Сотрудник"
+    "CLEANER" -> "Горничная"
+    "MASTER" -> "Мастер"
+    else -> role
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditGuestDialog(
+    guest: Guest,
+    onDismiss: () -> Unit,
+    onUpdate: (Guest) -> Unit
+) {
+    var fullName by remember { mutableStateOf(guest.fullName) }
+    var phone by remember { mutableStateOf(guest.phone) }
+    var roomNumber by remember { mutableStateOf(guest.roomNumber) }
+    var isActive by remember { mutableStateOf(guest.isActive) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Редактировать гостя",
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = fullName,
+                    onValueChange = { fullName = it },
+                    label = { Text("ФИО гостя") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Номер телефона") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = roomNumber,
+                    onValueChange = { roomNumber = it },
+                    label = { Text("Номер комнаты") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = isActive,
+                        onCheckedChange = { isActive = it },
+                        colors = CheckboxDefaults.colors(checkedColor = PremiumColorScheme.primary)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Активен", color = DarkGray)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (fullName.isNotBlank()) {
+                        onUpdate(guest.copy(fullName = fullName, phone = phone, roomNumber = roomNumber, isActive = isActive))
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PremiumColorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Сохранить")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) {
+                Text("Отмена")
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.widthIn(max = 400.dp)
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditStaffDialog(
+    staff: StaffUser,
+    onDismiss: () -> Unit,
+    onUpdate: (StaffUser) -> Unit
+) {
+    var username by remember { mutableStateOf(staff.username) }
+    var selectedRole by remember { mutableStateOf(staff.role) }
+    var expanded by remember { mutableStateOf(false) }
+
+    val roles = listOf(
+        "STAFF" to "👔 Сотрудник",
+        "CLEANER" to "🧹 Горничная",
+        "MASTER" to "🔧 Мастер"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Редактировать сотрудника",
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Логин") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Роль", fontSize = 14.sp, color = NeutralGray)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Исправленный ExposedDropdownMenuBox
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = roles.find { it.first == selectedRole }?.second ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),  // <-- Добавьте menuAnchor()
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PremiumColorScheme.primary,
+                            unfocusedBorderColor = NeutralGray.copy(alpha = 0.3f)
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        roles.forEach { (role, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    selectedRole = role
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (username.isNotBlank()) {
+                        onUpdate(staff.copy(username = username, role = selectedRole))
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PremiumColorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Сохранить")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) {
+                Text("Отмена")
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.widthIn(max = 400.dp)
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1292,7 +1779,7 @@ data class StatusConfig(
 fun AdminTicketCard(
     ticket: TicketResponse,
     onStatusChange: (String) -> Unit,
-    onDelete: () -> Unit
+    onDelete: (() -> Unit)? = null
 ) {
     var showDetailsDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -1321,12 +1808,7 @@ fun AdminTicketCard(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    // Гость
-                    Text(
-                        text = "Гость",
-                        fontSize = 12.sp,
-                        color = NeutralGray
-                    )
+                    Text("Гость", fontSize = 12.sp, color = NeutralGray)
                     Text(
                         text = ticket.guestName,
                         fontSize = 16.sp,
@@ -1335,12 +1817,7 @@ fun AdminTicketCard(
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    // Номер комнаты
-                    Text(
-                        text = "Номер комнаты",
-                        fontSize = 12.sp,
-                        color = NeutralGray
-                    )
+                    Text("Номер комнаты", fontSize = 12.sp, color = NeutralGray)
                     Text(
                         text = ticket.roomNumber,
                         fontSize = 16.sp,
@@ -1349,12 +1826,7 @@ fun AdminTicketCard(
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    // Категория
-                    Text(
-                        text = "Категория",
-                        fontSize = 12.sp,
-                        color = NeutralGray
-                    )
+                    Text("Категория", fontSize = 12.sp, color = NeutralGray)
                     Text(
                         text = ticket.categoryName,
                         fontSize = 16.sp,
@@ -1363,12 +1835,7 @@ fun AdminTicketCard(
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    // Статус
-                    Text(
-                        text = "Статус",
-                        fontSize = 12.sp,
-                        color = NeutralGray
-                    )
+                    Text("Статус", fontSize = 12.sp, color = NeutralGray)
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = statusConfig.backgroundColor,
@@ -1383,13 +1850,7 @@ fun AdminTicketCard(
                         )
                     }
 
-                    // Описание
-                    Text(
-                        text = "Описание",
-                        fontSize = 12.sp,
-                        color = NeutralGray,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
+                    Text("Описание", fontSize = 12.sp, color = NeutralGray, modifier = Modifier.padding(top = 12.dp))
                     Text(
                         text = ticket.description,
                         fontSize = 14.sp,
@@ -1397,13 +1858,7 @@ fun AdminTicketCard(
                         modifier = Modifier.padding(top = 4.dp)
                     )
 
-                    // Дата создания
-                    Text(
-                        text = "Дата создания",
-                        fontSize = 12.sp,
-                        color = NeutralGray,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
+                    Text("Дата создания", fontSize = 12.sp, color = NeutralGray, modifier = Modifier.padding(top = 12.dp))
                     Text(
                         text = ticket.createdAt,
                         fontSize = 14.sp,
@@ -1418,10 +1873,7 @@ fun AdminTicketCard(
                 }
             },
             dismissButton = {
-                // Кнопки действий в диалоге (опционально)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (ticket.status != "COMPLETED") {
                         TextButton(
                             onClick = {
@@ -1430,29 +1882,23 @@ fun AdminTicketCard(
                             },
                             colors = ButtonDefaults.textButtonColors(contentColor = SuccessGreen)
                         ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Завершить")
                         }
                     }
-                    TextButton(
-                        onClick = {
-                            showDetailsDialog = false
-                            showDeleteDialog = true
-                        },
-                        colors = ButtonDefaults.textButtonColors(contentColor = ErrorRed)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Удалить")
+                    if (onDelete != null) {
+                        TextButton(
+                            onClick = {
+                                showDetailsDialog = false
+                                showDeleteDialog = true
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = ErrorRed)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Удалить")
+                        }
                     }
                 }
             },
@@ -1462,7 +1908,7 @@ fun AdminTicketCard(
     }
 
     // Диалог удаления
-    if (showDeleteDialog) {
+    if (showDeleteDialog && onDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = {
@@ -1505,15 +1951,12 @@ fun AdminTicketCard(
             .fillMaxWidth()
             .animateContentSize()
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { showDetailsDialog = true }
-                )
+                detectTapGestures(onTap = { showDetailsDialog = true })
             },
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        // ... остальной код карточки без изменений ...
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1604,9 +2047,7 @@ fun AdminTicketCard(
                     Icon(
                         Icons.Default.Schedule,
                         contentDescription = null,
-                        modifier = Modifier
-                            .size(14.dp)
-                            .padding(start = 8.dp),
+                        modifier = Modifier.size(14.dp).padding(start = 8.dp),
                         tint = PremiumColorScheme.primary
                     )
                     Text(
@@ -1618,13 +2059,9 @@ fun AdminTicketCard(
                     )
                 }
 
-                // Кнопки быстрого действия
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (ticket.status != "NEW") {
-                        IconButton(
-                            onClick = { onStatusChange("NEW") },
-                            modifier = Modifier.size(28.dp)
-                        ) {
+                        IconButton(onClick = { onStatusChange("NEW") }, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 Icons.Default.RadioButtonUnchecked,
                                 contentDescription = "Новая",
@@ -1634,10 +2071,7 @@ fun AdminTicketCard(
                         }
                     }
                     if (ticket.status != "IN_PROGRESS") {
-                        IconButton(
-                            onClick = { onStatusChange("IN_PROGRESS") },
-                            modifier = Modifier.size(28.dp)
-                        ) {
+                        IconButton(onClick = { onStatusChange("IN_PROGRESS") }, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 Icons.Default.PlayArrow,
                                 contentDescription = "В работе",
@@ -1647,10 +2081,7 @@ fun AdminTicketCard(
                         }
                     }
                     if (ticket.status != "COMPLETED") {
-                        IconButton(
-                            onClick = { onStatusChange("COMPLETED") },
-                            modifier = Modifier.size(28.dp)
-                        ) {
+                        IconButton(onClick = { onStatusChange("COMPLETED") }, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 Icons.Default.CheckCircle,
                                 contentDescription = "Выполнена",
@@ -1659,16 +2090,15 @@ fun AdminTicketCard(
                             )
                         }
                     }
-                    IconButton(
-                        onClick = { showDeleteDialog = true },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Удалить",
-                            tint = ErrorRed,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    if (onDelete != null) {
+                        IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Удалить",
+                                tint = ErrorRed,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }

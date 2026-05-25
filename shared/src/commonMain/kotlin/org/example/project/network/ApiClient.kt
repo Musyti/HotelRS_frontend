@@ -94,6 +94,76 @@ class ApiClient(
         }.body()
     }
 
+    // Получение всех гостей (админ)
+    suspend fun getAllGuests(): List<Guest> {
+        return client.get {
+            url {
+                appendPathSegments("api", "admin", "guests")
+            }
+        }.body()
+    }
+
+    // Получение всех сотрудников (админ)
+    suspend fun getAllStaff(): List<StaffUser> {
+        return client.get {
+            url {
+                appendPathSegments("api", "admin", "staff")
+            }
+        }.body()
+    }
+
+    // Обновление гостя (админ)
+    suspend fun updateGuest(guestId: Int, guest: UpdateGuestRequest): Map<String, String> {
+        return client.put {
+            url {
+                appendPathSegments("api", "admin", "guests", guestId.toString())
+            }
+            contentType(ContentType.Application.Json)
+            setBody(guest)
+        }.body()
+    }
+
+    // Обновление сотрудника (админ)
+    suspend fun updateStaff(staffId: Int, staff: UpdateStaffRequest): Map<String, String> {
+        return client.put {
+            url {
+                appendPathSegments("api", "admin", "staff", staffId.toString())
+            }
+            contentType(ContentType.Application.Json)
+            setBody(staff)
+        }.body()
+    }
+
+    // Удаление гостя (админ)
+    suspend fun deleteGuest(guestId: Int): Map<String, String> {
+        return client.delete {
+            url {
+                appendPathSegments("api", "admin", "guests", guestId.toString())
+            }
+        }.body()
+    }
+
+    // Удаление сотрудника (админ) - кроме администраторов
+    suspend fun deleteStaff(staffId: Int): Map<String, String> {
+        return client.delete {
+            url {
+                appendPathSegments("api", "admin", "staff", staffId.toString())
+            }
+        }.body()
+    }
+
+    // Получение заявок для сотрудника (с фильтрацией по его роли)
+    suspend fun getStaffTickets(status: String? = null): List<TicketResponse> {
+        return client.get {
+            url {
+                appendPathSegments("api", "staff", "tickets")
+                if (status != null) {
+                    parameters.append("status", status)
+                }
+            }
+        }.body()
+    }
+
     // Обновление статуса заявки
     suspend fun updateTicketStatus(ticketId: Int, status: String): Map<String, String> {
         return client.put {
