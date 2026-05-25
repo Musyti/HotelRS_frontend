@@ -1,5 +1,7 @@
 package org.example.project
 
+
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -601,20 +603,19 @@ fun TicketCard(ticket: TicketResponse) {
     GuestTicketCard(ticket = ticket)
 }
 
-// ====== НОВЫЙ ПРЕМИУМ ADMIN SCREEN С ИЗМЕНЕНИЕМ СТАТУСА И УДАЛЕНИЕМ ======
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(
     apiClient: ApiClient,
     onLogout: () -> Unit
 ) {
+    var selectedTab by remember { mutableIntStateOf(0) }
     var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var statusFilter by remember { mutableStateOf<String?>(null) }
     var showSnackbar by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
 
     fun loadTickets() {
         scope.launch {
@@ -669,158 +670,85 @@ fun AdminScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Управление заявками",
+                            text = "Админ-панель",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = DarkGray
                         )
                         Text(
-                            text = "${tickets.size} ${getDeclension(tickets.size)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = NeutralGray
+                            text = if (selectedTab == 0) "${tickets.size} ${getDeclension(tickets.size)}" else "Управление пользователями",
+                            color = NeutralGray,
+                            fontSize = 12.sp
                         )
                     }
                 }
                 IconButton(onClick = onLogout) {
-                    Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = NeutralGray)
+                    Icon(Icons.Default.Logout, contentDescription = "Выйти", tint = NeutralGray)  // <-- Icons.Default
                 }
             }
         }
 
-        // Filter Chips with horizontal scroll
-        AnimatedVisibility(
-            visible = true,
-            enter = fadeIn() + slideInVertically(),
-            exit = fadeOut() + slideOutVertically()
+        // Табы - используем PrimaryTabRow
+        PrimaryTabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.White,
+            contentColor = PremiumColorScheme.primary
         ) {
-            Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                Text(
-                    text = "Фильтр",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = NeutralGray,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val filters = listOf(
-                        null to "Все",
-                        "NEW" to "🆕 Новые",
-                        "IN_PROGRESS" to "⚙️ В работе",
-                        "COMPLETED" to "✅ Выполнены"
-                    )
-                    filters.forEach { (filter, label) ->
-                        FilterChip(
-                            selected = statusFilter == filter,  // добавлено
-                            onClick = { statusFilter = filter },
-                            label = { Text(label, maxLines = 1) },
-                            enabled = true,  // добавлено
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
-                }
-            }
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("Заявки") },
+                icon = { Icon(Icons.Default.List, contentDescription = null) }  // <-- Icons.Default
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text("Пользователи") },
+                icon = { Icon(Icons.Default.People, contentDescription = null) }
+            )
         }
 
-        // Content
-        Box(modifier = Modifier.fillMaxSize()) {
-            when {
-                isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PremiumColorScheme.primary)
+        // Контент вкладок
+        when (selectedTab) {
+            0 -> TicketsTab(
+                tickets = tickets,
+                isLoading = isLoading,
+                errorMessage = errorMessage,
+                statusFilter = statusFilter,
+                onStatusFilterChange = { statusFilter = it },
+                onStatusChange = { ticket, newStatus ->
+                    scope.launch {
+                        isLoading = true
+                        try {
+                            apiClient.updateTicketStatus(ticket.id, newStatus)
+                            showSnackbar = "Статус изменён на ${getStatusName(newStatus)}"
+                            loadTickets()
+                        } catch (e: Exception) {
+                            showSnackbar = "Ошибка: ${e.message}"
+                        } finally {
+                            isLoading = false
+                        }
                     }
-                }
-                errorMessage != null -> {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Error, contentDescription = null, tint = ErrorRed)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = errorMessage!!, color = ErrorRed)
+                },
+                onDelete = { ticket ->
+                    scope.launch {
+                        isLoading = true
+                        try {
+                            apiClient.deleteTicket(ticket.id)
+                            showSnackbar = "Заявка #${ticket.id} удалена"
+                            loadTickets()
+                        } catch (e: Exception) {
+                            showSnackbar = "Ошибка удаления: ${e.message}"
+                        } finally {
+                            isLoading = false
                         }
                     }
                 }
-                tickets.isEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.Inbox,
-                                contentDescription = null,
-                                modifier = Modifier.size(80.dp),
-                                tint = NeutralGray.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Нет заявок",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = NeutralGray
-                            )
-                            Text(
-                                text = statusFilter?.let { "В категории «$it»" } ?: "Список пуст",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = NeutralGray.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        state = listState,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                    ) {
-                        items(tickets, key = { it.id }) { ticket ->
-                            AdminTicketCard(
-                                ticket = ticket,
-                                onStatusChange = { newStatus ->
-                                    scope.launch {
-                                        isLoading = true
-                                        try {
-                                            apiClient.updateTicketStatus(ticket.id, newStatus)
-                                            showSnackbar = "Статус изменён на ${getStatusName(newStatus)}"
-                                            loadTickets()
-                                        } catch (e: Exception) {
-                                            showSnackbar = "Ошибка: ${e.message}"
-                                        } finally {
-                                            isLoading = false
-                                        }
-                                    }
-                                },
-                                onDelete = {
-                                    scope.launch {
-                                        isLoading = true
-                                        try {
-                                            apiClient.deleteTicket(ticket.id)
-                                            showSnackbar = "Заявка #${ticket.id} удалена"
-                                            loadTickets()
-                                        } catch (e: Exception) {
-                                            showSnackbar = "Ошибка удаления: ${e.message}"
-                                        } finally {
-                                            isLoading = false
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
+            )
+            1 -> UsersTab(
+                apiClient = apiClient,
+                onShowSnackbar = { message -> showSnackbar = message }
+            )
         }
     }
 
@@ -837,14 +765,14 @@ fun AdminScreen(
             Surface(
                 modifier = Modifier
                     .padding(horizontal = 32.dp, vertical = 24.dp)
-                    .widthIn(max = 300.dp),
+                    .wrapContentWidth(),
                 shape = RoundedCornerShape(8.dp),
                 color = DarkGray,
                 shadowElevation = 4.dp
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,  // <-- выравниваем по центру
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
@@ -854,20 +782,488 @@ fun AdminScreen(
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(
-                        onClick = { showSnackbar = null }
-                    ) {
-                        Text(
-                            text = "OK",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                    TextButton(onClick = { showSnackbar = null }) {
+                        Text("OK", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun TicketsTab(
+    tickets: List<TicketResponse>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    statusFilter: String?,
+    onStatusFilterChange: (String?) -> Unit,
+    onStatusChange: (TicketResponse, String) -> Unit,
+    onDelete: (TicketResponse) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Фильтры
+        Column(modifier = Modifier.padding(vertical = 16.dp)) {
+            Text(
+                text = "Фильтр",
+                color = NeutralGray,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val filters = listOf(
+                    null to "Все",
+                    "NEW" to "Новые",
+                    "IN_PROGRESS" to "В работе",
+                    "COMPLETED" to "Выполнены"
+                )
+                filters.forEach { (filter, label) ->
+                    FilterChip(
+                        selected = statusFilter == filter,
+                        onClick = { onStatusFilterChange(filter) },
+                        label = { Text(label) },
+                        enabled = true,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PremiumColorScheme.primary,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+        }
+
+        // Список заявок
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = PremiumColorScheme.primary)
+                    }
+                }
+                errorMessage != null -> {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
+                    ) {
+                        Text(text = errorMessage, color = ErrorRed, modifier = Modifier.padding(16.dp))
+                    }
+                }
+                tickets.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("📭", fontSize = 64.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(text = "Нет заявок", color = NeutralGray)
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                    ) {
+                        items(tickets, key = { it.id }) { ticket ->
+                            AdminTicketCard(
+                                ticket = ticket,
+                                onStatusChange = { newStatus -> onStatusChange(ticket, newStatus) },
+                                onDelete = { onDelete(ticket) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UsersTab(
+    apiClient: ApiClient,
+    onShowSnackbar: (String) -> Unit
+) {
+    var showCreateGuestDialog by remember { mutableStateOf(false) }
+    var showCreateStaffDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Заголовок
+        Text(
+            text = "Управление пользователями",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = PremiumColorScheme.primary,
+            modifier = Modifier.padding(bottom = 32.dp)
+        )
+
+        // Карточка добавления гостя
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { showCreateGuestDialog = true })
+                },
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = CircleShape,
+                    color = PremiumColorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            tint = PremiumColorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Добавить гостя",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = DarkGray
+                    )
+                    Text(
+                        text = "Создать нового гостя в системе",
+                        fontSize = 14.sp,
+                        color = NeutralGray
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = NeutralGray
+                )
+            }
+        }
+
+        // Карточка добавления сотрудника
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { showCreateStaffDialog = true })
+                },
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = CircleShape,
+                    color = PremiumColorScheme.secondaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Badge,
+                            contentDescription = null,
+                            tint = PremiumColorScheme.secondary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Добавить сотрудника",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = DarkGray
+                    )
+                    Text(
+                        text = "Создать сотрудника с определенной ролью",
+                        fontSize = 14.sp,
+                        color = NeutralGray
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = NeutralGray
+                )
+            }
+        }
+    }
+
+    // Диалог создания гостя - передаем scope
+    if (showCreateGuestDialog) {
+        CreateGuestDialog(
+            onDismiss = { showCreateGuestDialog = false },
+            onCreate = { guest ->
+                // Запускаем корутину здесь, в колбэке
+                scope.launch {
+                    try {
+                        val response = apiClient.createGuest(guest)
+                        onShowSnackbar("Гость ${guest.fullName} успешно создан")
+                        showCreateGuestDialog = false
+                    } catch (e: Exception) {
+                        onShowSnackbar("Ошибка: ${e.message}")
+                    }
+                }
+            }
+        )
+    }
+
+    // Диалог создания сотрудника - передаем scope
+    if (showCreateStaffDialog) {
+        CreateStaffDialog(
+            onDismiss = { showCreateStaffDialog = false },
+            onCreate = { staff ->
+                // Запускаем корутину здесь, в колбэке
+                scope.launch {
+                    try {
+                        val response = apiClient.createStaff(staff)
+                        onShowSnackbar("Сотрудник ${staff.username} успешно создан")
+                        showCreateStaffDialog = false
+                    } catch (e: Exception) {
+                        onShowSnackbar("Ошибка: ${e.message}")
+                    }
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateGuestDialog(
+    onDismiss: () -> Unit,
+    onCreate: (CreateGuestRequest) -> Unit
+) {
+    var fullName by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var roomNumber by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Добавить гостя",
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = fullName,
+                    onValueChange = { fullName = it },
+                    label = { Text("ФИО гостя") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = PremiumColorScheme.primary)
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Номер телефона") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = {
+                        Icon(Icons.Default.Phone, contentDescription = null, tint = PremiumColorScheme.primary)
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = roomNumber,
+                    onValueChange = { roomNumber = it },
+                    label = { Text("Номер комнаты") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = {
+                        Icon(Icons.Default.Hotel, contentDescription = null, tint = PremiumColorScheme.primary)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (fullName.isNotBlank() && phone.isNotBlank() && roomNumber.isNotBlank()) {
+                        onCreate(CreateGuestRequest(fullName, phone, roomNumber))
+                    }
+                },
+                enabled = fullName.isNotBlank() && phone.isNotBlank() && roomNumber.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = PremiumColorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Создать")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Отмена")
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.widthIn(max = 400.dp)
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateStaffDialog(
+    onDismiss: () -> Unit,
+    onCreate: (CreateStaffRequest) -> Unit
+) {
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf("STAFF") }
+    var expanded by remember { mutableStateOf(false) }
+
+    val roles = listOf(
+        "ADMIN" to "👑 Администратор",
+        "STAFF" to "👔 Сотрудник",
+        "CLEANER" to "🧹 Горничная",
+        "MASTER" to "🔧 Мастер"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Добавить сотрудника",
+                fontWeight = FontWeight.Bold,
+                color = PremiumColorScheme.primary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Логин") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = PremiumColorScheme.primary)
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Пароль") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = {
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = PremiumColorScheme.primary)
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Выбор роли
+                Text(
+                    text = "Роль",
+                    fontSize = 14.sp,
+                    color = NeutralGray,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = roles.find { it.first == selectedRole }?.second ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PremiumColorScheme.primary)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        roles.forEach { (role, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    selectedRole = role
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (username.isNotBlank() && password.isNotBlank()) {
+                        onCreate(CreateStaffRequest(username, password, selectedRole))
+                    }
+                },
+                enabled = username.isNotBlank() && password.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = PremiumColorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Создать")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Отмена")
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.widthIn(max = 400.dp)
+    )
 }
 
 private fun getDeclension(count: Int): String {

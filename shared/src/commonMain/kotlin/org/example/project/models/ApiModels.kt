@@ -37,6 +37,13 @@ data class TicketResponse(
     val createdAt: String
 )
 
+@Serializable
+data class CreateGuestRequest(
+    val fullName: String,
+    val phone: String,
+    val roomNumber: String
+)
+
 // Для создания сотрудника (если понадобится)
 @Serializable
 data class CreateStaffRequest(
@@ -44,6 +51,8 @@ data class CreateStaffRequest(
     val password: String,
     val role: String
 )
+
+
 
 // Для обновления статуса
 @Serializable

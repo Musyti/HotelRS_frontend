@@ -42,6 +42,8 @@ class ApiClient(
         }
     }
 
+
+
     // Авторизация - сохраняем токен
     suspend fun login(request: LoginRequest): AuthResponse {
         val response = client.post {
@@ -112,14 +114,27 @@ class ApiClient(
         }.body()
     }
 
-    // Создание сотрудника (для админа)
-    suspend fun createStaff(request: CreateStaffRequest): Map<String, String> {
+    // Добавьте эти методы в ApiClient.kt
+
+    // Создание гостя (админ)
+    suspend fun createGuest(guest: CreateGuestRequest): Map<String, String> {
+        return client.post {
+            url {
+                appendPathSegments("api", "admin", "guests")
+            }
+            contentType(ContentType.Application.Json)
+            setBody(guest)
+        }.body()
+    }
+
+    // Создание сотрудника (админ)
+    suspend fun createStaff(staff: CreateStaffRequest): Map<String, String> {
         return client.post {
             url {
                 appendPathSegments("api", "admin", "staff")
             }
             contentType(ContentType.Application.Json)
-            setBody(request)
+            setBody(staff)
         }.body()
     }
 }
