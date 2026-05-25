@@ -35,16 +35,14 @@ class ApiClient(
         }
         defaultRequest {
             url(baseUrl)
-            // Добавляем заголовок авторизации, если токен есть
+            // Динамически подтягиваем актуальный токен авторизации для каждого запроса
             authToken?.let {
                 header("Authorization", "Bearer $it")
             }
         }
     }
 
-
-
-    // Авторизация - сохраняем токен
+    // Авторизация - сохраняем полученный токен
     suspend fun login(request: LoginRequest): AuthResponse {
         val response = client.post {
             url {
@@ -54,9 +52,7 @@ class ApiClient(
             setBody(request)
         }.body<AuthResponse>()
 
-        // Сохраняем токен для последующих запросов
         setAuthToken(response.token)
-
         return response
     }
 
@@ -82,11 +78,23 @@ class ApiClient(
         }.body()
     }
 
-    // Получение всех заявок (для админа) - теперь с токеном
+    // Получение всех заявок (для админа)
     suspend fun getAllTickets(status: String? = null): List<TicketResponse> {
         return client.get {
             url {
                 appendPathSegments("api", "admin", "tickets")
+                if (status != null) {
+                    parameters.append("status", status)
+                }
+            }
+        }.body()
+    }
+
+    // Получение заявок для сотрудников на смене
+    suspend fun getStaffTickets(status: String? = null): List<TicketResponse> {
+        return client.get {
+            url {
+                appendPathSegments("api", "staff", "tickets")
                 if (status != null) {
                     parameters.append("status", status)
                 }
@@ -112,6 +120,28 @@ class ApiClient(
         }.body()
     }
 
+    // Создание гостя (админ)
+    suspend fun createGuest(guest: CreateGuestRequest): Map<String, String> {
+        return client.post {
+            url {
+                appendPathSegments("api", "admin", "guests")
+            }
+            contentType(ContentType.Application.Json)
+            setBody(guest)
+        }.body()
+    }
+
+    // Создание сотрудника (админ)
+    suspend fun createStaff(staff: CreateStaffRequest): Map<String, String> {
+        return client.post {
+            url {
+                appendPathSegments("api", "admin", "staff")
+            }
+            contentType(ContentType.Application.Json)
+            setBody(staff)
+        }.body()
+    }
+
     // Обновление гостя (админ)
     suspend fun updateGuest(guestId: Int, guest: UpdateGuestRequest): Map<String, String> {
         return client.put {
@@ -134,37 +164,7 @@ class ApiClient(
         }.body()
     }
 
-    // Удаление гостя (админ)
-    suspend fun deleteGuest(guestId: Int): Map<String, String> {
-        return client.delete {
-            url {
-                appendPathSegments("api", "admin", "guests", guestId.toString())
-            }
-        }.body()
-    }
-
-    // Удаление сотрудника (админ) - кроме администраторов
-    suspend fun deleteStaff(staffId: Int): Map<String, String> {
-        return client.delete {
-            url {
-                appendPathSegments("api", "admin", "staff", staffId.toString())
-            }
-        }.body()
-    }
-
-    // Получение заявок для сотрудника (с фильтрацией по его роли)
-    suspend fun getStaffTickets(status: String? = null): List<TicketResponse> {
-        return client.get {
-            url {
-                appendPathSegments("api", "staff", "tickets")
-                if (status != null) {
-                    parameters.append("status", status)
-                }
-            }
-        }.body()
-    }
-
-    // Обновление статуса заявки
+    // Обновление статуса заявки (сотрудник/админ)
     suspend fun updateTicketStatus(ticketId: Int, status: String): Map<String, String> {
         return client.put {
             url {
@@ -175,7 +175,7 @@ class ApiClient(
         }.body()
     }
 
-    // Удаление заявки
+    // Удаление заявки (админ)
     suspend fun deleteTicket(ticketId: Int): Map<String, String> {
         return client.delete {
             url {
@@ -184,27 +184,21 @@ class ApiClient(
         }.body()
     }
 
-    // Добавьте эти методы в ApiClient.kt
-
-    // Создание гостя (админ)
-    suspend fun createGuest(guest: CreateGuestRequest): Map<String, String> {
-        return client.post {
+    // Удаление гостя (админ)
+    suspend fun deleteGuest(guestId: Int): Map<String, String> {
+        return client.delete {
             url {
-                appendPathSegments("api", "admin", "guests")
+                appendPathSegments("api", "admin", "guests", guestId.toString())
             }
-            contentType(ContentType.Application.Json)
-            setBody(guest)
         }.body()
     }
 
-    // Создание сотрудника (админ)
-    suspend fun createStaff(staff: CreateStaffRequest): Map<String, String> {
-        return client.post {
+    // Удаление сотрудника (админ)
+    suspend fun deleteStaff(staffId: Int): Map<String, String> {
+        return client.delete {
             url {
-                appendPathSegments("api", "admin", "staff")
+                appendPathSegments("api", "admin", "staff", staffId.toString())
             }
-            contentType(ContentType.Application.Json)
-            setBody(staff)
         }.body()
     }
 }

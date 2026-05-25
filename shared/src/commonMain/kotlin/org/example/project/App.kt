@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,6 +65,12 @@ private val PremiumColorScheme = lightColorScheme(
     error = ErrorRed,
     outline = Color(0xFFE5E9F0)
 )
+fun isValidPhone(phone: String): Boolean {
+    val digitsOnly = phone.replace(Regex("[^\\d+]"), "")
+    // Плюс может быть только первым символом
+    val normalized = digitsOnly.replace(Regex("^\\+"), "")
+    return normalized.length in 10..15 && digitsOnly.matches(Regex("^\\+?[0-9]+$"))
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +85,11 @@ fun App() {
         val scope = rememberCoroutineScope()
         val platform = remember { getPlatform() }
         val apiClient = remember { ApiClient(platform.baseUrl) }
+        LaunchedEffect(auth) {
+            if (auth != null) {
+                apiClient.setAuthToken(auth!!.token)
+            }
+        }
 
         LaunchedEffect(auth, showCreateTicket) {
             if (auth != null && auth!!.role == "GUEST" && !showCreateTicket) {
@@ -206,10 +219,11 @@ fun LoginScreen(
     errorMessage: String?,
     onLogin: (type: String, identifier: String, password: String?) -> Unit
 ) {
+    var passwordVisibility by remember { mutableStateOf(false) }
     var type by remember { mutableStateOf("STAFF") }
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-
+    var phoneError by remember { mutableStateOf<String?>(null) } // <-- Добавлено
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -279,21 +293,20 @@ fun LoginScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         FilterChip(
-                            selected = type == "GUEST",  // добавлено
+                            selected = type == "GUEST",
                             onClick = { type = "GUEST" },
                             label = { Text("Я гость") },
-                            enabled = true,  // добавлено
+                            enabled = true,
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                                 selectedLabelColor = Color.White
                             )
                         )
-
                         FilterChip(
-                            selected = type == "STAFF",  // добавлено
+                            selected = type == "STAFF",
                             onClick = { type = "STAFF" },
                             label = { Text("Сотрудник") },
-                            enabled = true,  // добавлено
+                            enabled = true,
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
                                 selectedLabelColor = Color.White
@@ -338,6 +351,14 @@ fun LoginScreen(
                                     tint = PremiumColorScheme.primary
                                 )
                             },
+                            trailingIcon = {
+                                val image = if (passwordVisibility) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                                val description = if (passwordVisibility) "Скрыть пароль" else "Показать пароль"
+                                IconButton(onClick = { passwordVisibility = !passwordVisibility }) {
+                                    Icon(imageVector = image, contentDescription = description, tint = PremiumColorScheme.primary)
+                                }
+                            },
+                            visualTransformation = if (passwordVisibility) VisualTransformation.None else PasswordVisualTransformation(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = PremiumColorScheme.primary,
                                 unfocusedBorderColor = NeutralGray.copy(alpha = 0.3f)
@@ -350,6 +371,14 @@ fun LoginScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = NeutralGray
                         )
+                        if (phoneError != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = phoneError!!,
+                                color = ErrorRed,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -383,8 +412,20 @@ fun LoginScreen(
 
                     Button(
                         onClick = {
-                            val pass = if (type == "GUEST") null else password
-                            onLogin(type, identifier, pass)
+                            if (type == "GUEST") {
+                                if (!isValidPhone(identifier)) {
+                                    phoneError = "Введите корректный номер телефона (10–15 цифр)"
+                                    return@Button
+                                }
+                                phoneError = null
+                                onLogin(type, identifier, null)
+                            } else {
+                                if (identifier.isBlank() || password.isBlank()) {
+                                    // Здесь можно добавить локальную ошибку, если нужно
+                                    return@Button
+                                }
+                                onLogin(type, identifier, password)
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1013,6 +1054,10 @@ fun UsersTab(
         scope.launch {
             isLoading = true
             try {
+                // Фикс гонки состояний: даем LaunchedEffect(auth) в App.kt
+                // буквально 100-200мс прокинуть JWT токен в ApiClient
+                delay(150)
+
                 val guestsResult = apiClient.getAllGuests()
                 val staffResult = apiClient.getAllStaff()
                 guests = guestsResult
@@ -1025,6 +1070,7 @@ fun UsersTab(
         }
     }
 
+    // Триггерится один раз при ленивой инициализации вкладки
     LaunchedEffect(Unit) {
         loadUsers()
     }
@@ -1034,7 +1080,7 @@ fun UsersTab(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Заголовок и кнопки добавления
+        // Панель заголовка и кнопок действий
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1044,9 +1090,15 @@ fun UsersTab(
                 text = "Управление пользователями",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = PremiumColorScheme.primary
+                color = PremiumColorScheme.primary,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
-            Row {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(onClick = { showCreateGuestDialog = true }) {
                     Icon(Icons.Default.PersonAdd, contentDescription = "Добавить гостя", tint = PremiumColorScheme.primary)
                 }
@@ -1061,7 +1113,7 @@ fun UsersTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Табы для переключения между гостями и сотрудниками
+        // Переключатель вкладок (Гости / Персонал)
         SecondaryTabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.White,
@@ -1083,7 +1135,7 @@ fun UsersTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Список пользователей
+        // Основное содержимое списков
         when {
             isLoading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1095,11 +1147,13 @@ fun UsersTab(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("👥", fontSize = 48.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text("Нет гостей", color = NeutralGray)
                         }
                     }
                 } else {
                     LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(guests, key = { it.id }) { guest ->
@@ -1130,11 +1184,13 @@ fun UsersTab(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("👔", fontSize = 48.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text("Нет сотрудников", color = NeutralGray)
                         }
                     }
                 } else {
                     LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(staff, key = { it.id }) { staffMember ->
@@ -1167,7 +1223,10 @@ fun UsersTab(
         }
     }
 
-    // Диалоги создания и редактирования (как были ранее)
+    // ==========================================================
+    // ДИАЛОГОВЫЕ ОКНА (Создание / Модификация данных)
+    // ==========================================================
+
     if (showCreateGuestDialog) {
         CreateGuestDialog(
             onDismiss = { showCreateGuestDialog = false },
@@ -1553,6 +1612,7 @@ fun CreateGuestDialog(
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var roomNumber by remember { mutableStateOf("") }
+    var phoneError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1580,10 +1640,16 @@ fun CreateGuestDialog(
                     }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
+
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = { phone = it },
+                    onValueChange = { newPhone ->
+                        phone = newPhone
+                        phoneError = null // сброс ошибки при редактировании
+                    },
                     label = { Text("Номер телефона") },
+                    isError = phoneError != null,
+                    supportingText = { if (phoneError != null) Text(phoneError!!) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     leadingIcon = {
@@ -1591,6 +1657,7 @@ fun CreateGuestDialog(
                     }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
+
                 OutlinedTextField(
                     value = roomNumber,
                     onValueChange = { roomNumber = it },
@@ -1606,9 +1673,15 @@ fun CreateGuestDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (fullName.isNotBlank() && phone.isNotBlank() && roomNumber.isNotBlank()) {
-                        onCreate(CreateGuestRequest(fullName, phone, roomNumber))
+                    if (fullName.isBlank() || phone.isBlank() || roomNumber.isBlank()) {
+                        phoneError = "Заполните все поля"
+                        return@Button
                     }
+                    if (!isValidPhone(phone)) {
+                        phoneError = "Введите корректный номер телефона (10–15 цифр)"
+                        return@Button
+                    }
+                    onCreate(CreateGuestRequest(fullName, phone, roomNumber))
                 },
                 enabled = fullName.isNotBlank() && phone.isNotBlank() && roomNumber.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = PremiumColorScheme.primary),
