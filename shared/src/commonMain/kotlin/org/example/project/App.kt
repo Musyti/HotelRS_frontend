@@ -1,5 +1,8 @@
 package org.example.project
 
+
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.verticalScroll
@@ -74,7 +77,9 @@ fun isValidPhone(phone: String): Boolean {
 @Composable
 fun App() {
     MaterialTheme(colorScheme = PremiumColorScheme, typography = PremiumTypography()) {
-        var auth by remember { mutableStateOf<AuthResponse?>(null) }
+        var auth by remember {
+            mutableStateOf(SessionManager.getAuth())
+        }
         var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
         var isLoading by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -122,6 +127,7 @@ fun App() {
                                         LoginRequest(type, identifier, password)
                                     )
                                     auth = response
+                                    SessionManager.saveAuth(response)
                                 } catch (e: Exception) {
                                     errorMessage = "Ошибка входа: ${e.message}"
                                 } finally {
@@ -135,7 +141,10 @@ fun App() {
                 auth!!.role == "ADMIN" || auth!!.role == "STAFF" || auth!!.role == "CLEANER" || auth!!.role == "MASTER" -> {
                     AdminScreen(
                         apiClient = apiClient,
-                        onLogout = { auth = null },
+                        onLogout = {
+                            auth = null
+                            SessionManager.clearAuth()
+                        },
                         currentUserRole = auth!!.role
                     )
                 }
@@ -180,7 +189,10 @@ fun App() {
                                 }
                             }
                         },
-                        onLogout = { auth = null }
+                        onLogout = {
+                            auth = null
+                            SessionManager.clearAuth()
+                        }
                     )
                 }
             }
@@ -248,11 +260,10 @@ fun LoginScreen(
                 color = PremiumColorScheme.primary
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Hotel,
+                    Image(
+                        painter = painterResource("logo2.png"),
                         contentDescription = "Logo",
-                        tint = Color.White,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(48.dp)
                     )
                 }
             }

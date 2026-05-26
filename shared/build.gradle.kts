@@ -11,12 +11,12 @@ plugins {
 
 kotlin {
     jvm()
-    
+
     androidLibrary {
        namespace = "org.example.project.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
-    
+
        compilerOptions {
            jvmTarget = JvmTarget.JVM_11
        }
@@ -27,7 +27,7 @@ kotlin {
            isIncludeAndroidResources = true
        }
     }
-    
+
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
@@ -36,6 +36,8 @@ kotlin {
             implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
         }
         commonMain.dependencies {
+            implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
@@ -60,4 +62,29 @@ kotlin {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+compose.desktop {
+    application {
+
+        mainClass = "MainKt"
+
+        nativeDistributions {
+
+            targetFormats(
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
+            )
+
+            packageName = "HotelRS"
+            packageVersion = "1.0.0"
+
+            windows {
+
+                iconFile.set(
+                    project.file(
+                        "src/jvmMain/resources/logo.ico"
+                    )
+                )
+            }
+        }
+    }
 }
