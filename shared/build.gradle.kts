@@ -33,6 +33,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation("io.ktor:ktor-client-android:3.4.3")      // движок для Android [citation:9]
             implementation("io.ktor:ktor-client-okhttp:3.4.3")
+            implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

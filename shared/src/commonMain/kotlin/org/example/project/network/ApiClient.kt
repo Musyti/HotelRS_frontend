@@ -42,17 +42,22 @@ class ApiClient(
         }
     }
 
+
     // Авторизация - сохраняем полученный токен
     suspend fun login(request: LoginRequest): AuthResponse {
         val response = client.post {
-            url {
-                appendPathSegments("api", "auth", "login")
-            }
+            url { appendPathSegments("api", "auth", "login") }
             contentType(ContentType.Application.Json)
             setBody(request)
         }.body<AuthResponse>()
 
+        println("=== LOGIN SUCCESS ===")
+        println("Получен токен: ${response.token.take(50)}...")
+        println("Роль: ${response.role}, guestId: ${response.guestId}")
+
         setAuthToken(response.token)
+        println("Токен сохранён в ApiClient. authToken = ${authToken?.take(50)}")
+
         return response
     }
 
@@ -110,12 +115,25 @@ class ApiClient(
             }
         }.body()
     }
+    fun isTokenPresent(): Boolean = !authToken.isNullOrEmpty()
+    fun getAuthToken(): String? = authToken
 
     // Получение всех сотрудников (админ)
     suspend fun getAllStaff(): List<StaffUser> {
+        val token = authToken  // сохраняем в локальную переменную
+
+        println("=== getAllStaff() ===")
+        println("Токен из authToken: ${token?.take(50)}")
+
         return client.get {
             url {
                 appendPathSegments("api", "admin", "staff")
+            }
+            // Принудительно добавляем токен в заголовок
+            if (token != null) {
+                header("Authorization", "Bearer $token")
+            } else {
+                println("⚠️ Токен NULL! Запрос без авторизации")
             }
         }.body()
     }

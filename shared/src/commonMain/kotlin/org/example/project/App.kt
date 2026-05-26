@@ -802,7 +802,8 @@ fun AdminScreen(
             selectedTab == 1 && isAdmin -> {
                 UsersTab(
                     apiClient = apiClient,
-                    onShowSnackbar = { message -> showSnackbar = message }
+                    onShowSnackbar = { message -> showSnackbar = message },
+                    authToken = apiClient.getAuthToken()  // ← передаём токен
                 )
             }
         }
@@ -1036,6 +1037,7 @@ fun TicketsTab(
 @Composable
 fun UsersTab(
     apiClient: ApiClient,
+    authToken: String?,
     onShowSnackbar: (String) -> Unit
 ) {
     var showCreateGuestDialog by remember { mutableStateOf(false) }
@@ -1052,12 +1054,13 @@ fun UsersTab(
 
     fun loadUsers() {
         scope.launch {
+            if (authToken == null) {
+                onShowSnackbar("Ошибка: не выполнен вход")
+                return@launch
+            }
+
             isLoading = true
             try {
-                // Фикс гонки состояний: даем LaunchedEffect(auth) в App.kt
-                // буквально 100-200мс прокинуть JWT токен в ApiClient
-                delay(150)
-
                 val guestsResult = apiClient.getAllGuests()
                 val staffResult = apiClient.getAllStaff()
                 guests = guestsResult
@@ -1070,9 +1073,10 @@ fun UsersTab(
         }
     }
 
-    // Триггерится один раз при ленивой инициализации вкладки
-    LaunchedEffect(Unit) {
-        loadUsers()
+    LaunchedEffect(authToken) {  // ← зависит от токена
+        if (authToken != null) {
+            loadUsers()
+        }
     }
 
     Column(
