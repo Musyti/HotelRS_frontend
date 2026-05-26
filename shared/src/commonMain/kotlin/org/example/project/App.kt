@@ -1,6 +1,5 @@
 package org.example.project
 
-
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.verticalScroll
@@ -65,13 +64,12 @@ private val PremiumColorScheme = lightColorScheme(
     error = ErrorRed,
     outline = Color(0xFFE5E9F0)
 )
+
 fun isValidPhone(phone: String): Boolean {
     val digitsOnly = phone.replace(Regex("[^\\d+]"), "")
-    // Плюс может быть только первым символом
     val normalized = digitsOnly.replace(Regex("^\\+"), "")
     return normalized.length in 10..15 && digitsOnly.matches(Regex("^\\+?[0-9]+$"))
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App() {
@@ -223,7 +221,7 @@ fun LoginScreen(
     var type by remember { mutableStateOf("STAFF") }
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var phoneError by remember { mutableStateOf<String?>(null) } // <-- Добавлено
+    var phoneError by remember { mutableStateOf<String?>(null) }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -242,7 +240,6 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo Area
             Surface(
                 modifier = Modifier
                     .size(80.dp)
@@ -287,7 +284,6 @@ fun LoginScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Role Selection
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -316,7 +312,6 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Identifier Field
                     OutlinedTextField(
                         value = identifier,
                         onValueChange = { identifier = it },
@@ -421,7 +416,6 @@ fun LoginScreen(
                                 onLogin(type, identifier, null)
                             } else {
                                 if (identifier.isBlank() || password.isBlank()) {
-                                    // Здесь можно добавить локальную ошибку, если нужно
                                     return@Button
                                 }
                                 onLogin(type, identifier, password)
@@ -455,7 +449,6 @@ fun LoginScreen(
         }
     }
 }
-
 @Composable
 fun GuestTicketsScreen(
     tickets: List<TicketResponse>,
@@ -650,7 +643,7 @@ fun TicketCard(ticket: TicketResponse) {
 fun AdminScreen(
     apiClient: ApiClient,
     onLogout: () -> Unit,
-    currentUserRole: String  // <-- ДОБАВЬТЕ ЭТОТ ПАРАМЕТР
+    currentUserRole: String
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
@@ -666,7 +659,6 @@ fun AdminScreen(
         scope.launch {
             isLoading = true
             try {
-                // Для сотрудников используем специальный эндпоинт
                 tickets = if (isAdmin) {
                     apiClient.getAllTickets(statusFilter)
                 } else {
@@ -690,7 +682,6 @@ fun AdminScreen(
             .fillMaxSize()
             .background(PremiumColorScheme.background)
     ) {
-        // Header
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = Color.White,
@@ -737,8 +728,6 @@ fun AdminScreen(
                 }
             }
         }
-
-        // Табы - показываем только если пользователь ADMIN
         if (isAdmin) {
             PrimaryTabRow(
                 selectedTabIndex = selectedTab,
@@ -760,7 +749,6 @@ fun AdminScreen(
             }
         }
 
-        // Контент
         when {
             !isAdmin || selectedTab == 0 -> {
                 StaffTicketsContent(
@@ -803,13 +791,12 @@ fun AdminScreen(
                 UsersTab(
                     apiClient = apiClient,
                     onShowSnackbar = { message -> showSnackbar = message },
-                    authToken = apiClient.getAuthToken()  // ← передаём токен
+                    authToken = apiClient.getAuthToken()
                 )
             }
         }
     }
 
-    // Snackbar
     showSnackbar?.let { message ->
         LaunchedEffect(message) {
             delay(2000)
@@ -859,7 +846,6 @@ fun StaffTicketsContent(
     onDelete: ((TicketResponse) -> Unit)? = null
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Фильтры
         Column(modifier = Modifier.padding(vertical = 16.dp)) {
             Text(
                 text = "Фильтр",
@@ -894,7 +880,6 @@ fun StaffTicketsContent(
             }
         }
 
-        // Список заявок
         Box(modifier = Modifier.fillMaxSize()) {
             when {
                 isLoading -> {
@@ -952,7 +937,6 @@ fun TicketsTab(
     onDelete: (TicketResponse) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Фильтры
         Column(modifier = Modifier.padding(vertical = 16.dp)) {
             Text(
                 text = "Фильтр",
@@ -987,7 +971,6 @@ fun TicketsTab(
             }
         }
 
-        // Список заявок
         Box(modifier = Modifier.fillMaxSize()) {
             when {
                 isLoading -> {
@@ -1033,7 +1016,6 @@ fun TicketsTab(
         }
     }
 }
-
 @Composable
 fun UsersTab(
     apiClient: ApiClient,
@@ -1048,7 +1030,7 @@ fun UsersTab(
     var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
     var staff by remember { mutableStateOf<List<StaffUser>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 - гости, 1 - сотрудники
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     val scope = rememberCoroutineScope()
 
@@ -1058,7 +1040,6 @@ fun UsersTab(
                 onShowSnackbar("Ошибка: не выполнен вход")
                 return@launch
             }
-
             isLoading = true
             try {
                 val guestsResult = apiClient.getAllGuests()
@@ -1073,7 +1054,7 @@ fun UsersTab(
         }
     }
 
-    LaunchedEffect(authToken) {  // ← зависит от токена
+    LaunchedEffect(authToken) {
         if (authToken != null) {
             loadUsers()
         }
@@ -1084,7 +1065,6 @@ fun UsersTab(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Панель заголовка и кнопок действий
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1117,7 +1097,6 @@ fun UsersTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Переключатель вкладок (Гости / Персонал)
         SecondaryTabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.White,
@@ -1139,7 +1118,6 @@ fun UsersTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Основное содержимое списков
         when {
             isLoading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1226,10 +1204,6 @@ fun UsersTab(
             }
         }
     }
-
-    // ==========================================================
-    // ДИАЛОГОВЫЕ ОКНА (Создание / Модификация данных)
-    // ==========================================================
 
     if (showCreateGuestDialog) {
         CreateGuestDialog(
@@ -1548,7 +1522,6 @@ fun EditStaffDialog(
                 Text("Роль", fontSize = 14.sp, color = NeutralGray)
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Исправленный ExposedDropdownMenuBox
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = !expanded }
@@ -1560,7 +1533,7 @@ fun EditStaffDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(),  // <-- Добавьте menuAnchor()
+                            .menuAnchor(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = PremiumColorScheme.primary,
@@ -1606,7 +1579,6 @@ fun EditStaffDialog(
         modifier = Modifier.widthIn(max = 400.dp)
     )
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateGuestDialog(
@@ -1649,7 +1621,7 @@ fun CreateGuestDialog(
                     value = phone,
                     onValueChange = { newPhone ->
                         phone = newPhone
-                        phoneError = null // сброс ошибки при редактировании
+                        phoneError = null
                     },
                     label = { Text("Номер телефона") },
                     isError = phoneError != null,
@@ -1763,7 +1735,6 @@ fun CreateStaffDialog(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Выбор роли
                 Text(
                     text = "Роль",
                     fontSize = 14.sp,
@@ -1868,7 +1839,6 @@ fun AdminTicketCard(
         else -> StatusConfig(ticket.status, NeutralGray, NeutralGray.copy(alpha = 0.1f))
     }
 
-    // Диалог с деталями заявки
     if (showDetailsDialog) {
         AlertDialog(
             onDismissRequest = { showDetailsDialog = false },
@@ -1984,7 +1954,6 @@ fun AdminTicketCard(
         )
     }
 
-    // Диалог удаления
     if (showDeleteDialog && onDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
