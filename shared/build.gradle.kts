@@ -1,3 +1,4 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -65,25 +66,17 @@ dependencies {
 }
 compose.desktop {
     application {
-
         mainClass = "MainKt"
 
         nativeDistributions {
-
-            targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
-            )
-
+            targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "HotelRS"
             packageVersion = "1.0.0"
 
             windows {
-
-                iconFile.set(
-                    project.file(
-                        "src/jvmMain/resources/logo.ico"
-                    )
-                )
+                iconFile.set(project.file("logo.ico"))
+                shortcut = true
+                menu = true
             }
         }
     }

@@ -155,7 +155,7 @@ fun App() {
                             scope.launch {
                                 isLoading = true
                                 try {
-                                    apiClient.createTicket(auth!!.guestId!!, CreateTicketRequest(categoryId, description))
+                                    apiClient.createTicket(auth!!.guestId!!, CreateTicketRequest(categoryId.toInt(), description))
                                     showCreateTicket = false
                                     tickets = apiClient.getGuestTickets(auth!!.guestId!!)
                                     errorMessage = null
@@ -261,7 +261,7 @@ fun LoginScreen(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Image(
-                        painter = painterResource("logo2.png"),
+                        painter = painterResource("logo2.png".toString()),
                         contentDescription = "Logo",
                         modifier = Modifier.size(48.dp)
                     )
