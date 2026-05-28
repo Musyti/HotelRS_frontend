@@ -1,30 +1,179 @@
-This is a Kotlin Multiplatform project targeting Android, Desktop (JVM).
+# Учёт выполнения заявок — Android + Backend
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+Клиент-серверное приложение для управления заявками гостей отеля. Позволяет автоматизировать обработку запросов (уборка номера, технический ремонт, рум-сервис, вопросы), сократить время выполнения заявок и обеспечить разграничение прав доступа по ролям.
 
-### Running the apps
+## 📥 Исходный код
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+Исходный код проекта доступен в репозитории:
+- **Backend (серверная часть)**: `app_clone_bitrix` — Ktor сервер на Kotlin
+- **Frontend (клиентская часть)**: `shared` — Android приложение на Jetpack Compose
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- Desktop app:
-  - Hot reload: `./gradlew :desktopApp:hotRun --auto`
-  - Standard run: `./gradlew :desktopApp:run`
+## 🚀 Запуск проекта
 
-### Running tests
+### 📦 Требования
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+| Компонент | Требование |
+|-----------|------------|
+| Операционная система | Windows / macOS / Linux |
+| JDK | версия 17 или выше |
+| Kotlin | 2.0.0+ |
+| PostgreSQL | версия 13 или выше |
+| Android SDK | API 24+ (для клиента) |
 
-- Android tests: `./gradlew :shared:testAndroidHostTest`
-- Desktop tests: `./gradlew :shared:jvmTest`
+### 🐘 Настройка базы данных
+
+1. Установите PostgreSQL
+2. Создайте базу данных:
+```sql
+CREATE DATABASE database_number_hotel;
+```
+3. Настройте подключение в файле `DatabaseConnector.kt`:
+```kotlin
+Database.connect(
+    url = "jdbc:postgresql://localhost:5432/database_number_hotel",
+    driver = "org.postgresql.Driver",
+    user = "postgres",
+    password = "123"
+)
+```
+
+### ▶️ Запуск сервера
+
+1. Откройте проект `app_clone_bitrix` в IntelliJ IDEA
+2. Запустите файл `Application.kt` (функция `main`)
+3. Сервер запустится на порту `8080`
+
+```
+✅ Сервер запущен: http://127.0.0.1:8080
+```
+
+### 📱 Запуск Android приложения
+
+1. Откройте проект в Android Studio
+2. Убедитесь, что сервер запущен
+3. Соберите и установите приложение на устройство или эмулятор
+4. При необходимости укажите IP-адрес сервера в `Platform.kt`
+
+## 🔑 Начало работы
+
+При первом запуске сервера автоматически создаются:
+
+| Логин | Пароль | Роль |
+|-------|--------|------|
+| `admin` | `admin` | Администратор |
+
+Также автоматически создаются категории заявок:
+- Уборка номера
+- Технический ремонт
+- Рум-сервис
+- Вопросы и пожелания
+
+## 👥 Роли пользователей
+
+### Администратор (ADMIN)
+- Просмотр всех заявок
+- Изменение статуса любой заявки
+- Удаление заявок
+- Создание и редактирование пользователей (гостей и сотрудников)
+- Управление категориями
+
+### Сотрудник (STAFF)
+- Просмотр заявок категорий «Рум-сервис» и «Вопросы и пожелания»
+- Изменение статуса (в работе → выполнена)
+
+### Горничная (CLEANER)
+- Просмотр заявок категории «Уборка номера»
+- Изменение статуса (в работе → выполнена)
+
+### Мастер (MASTER)
+- Просмотр заявок категории «Технический ремонт»
+- Изменение статуса (в работе → выполнена)
+
+### Гость (GUEST)
+- Создание новых заявок
+- Просмотр своих заявок
+- Отслеживание статуса выполнения
+
+## 📋 Функционал
+
+### Для гостя
+- Авторизация по номеру телефона
+- Создание заявки с выбором категории
+- Просмотр истории своих заявок
+- Отслеживание статуса (Новая → В работе → Выполнена)
+
+### Для сотрудника
+- Авторизация по логину/паролю
+- Просмотр заявок только своей категории
+- Изменение статуса заявки
+- Фильтрация заявок по статусу
+
+### Для администратора
+- Полный доступ ко всем заявкам
+- Управление пользователями (создание, редактирование, удаление)
+- Управление заявками (изменение статуса, удаление)
+- Просмотр статистики
+
+## 🛠️ Технологии
+
+| Компонент | Технология |
+|-----------|------------|
+| Язык программирования | Kotlin (Kotlin Multiplatform) |
+| Серверный фреймворк | Ktor 3.4.0 |
+| Клиентский фреймворк | Jetpack Compose (Material 3) |
+| База данных | PostgreSQL |
+| ORM | Exposed 0.47.0 |
+| Авторизация | JWT (JSON Web Token) |
+| HTTP клиент | Ktor Client |
+| Сериализация | kotlinx.serialization |
+| Асинхронность | Kotlin Coroutines |
+
+## 🗄️ Структура базы данных
+
+| Таблица | Назначение |
+|---------|------------|
+| `guests` | Гости отеля (ФИО, телефон, номер комнаты) |
+| `staff` | Сотрудники (логин, хеш пароля, роль) |
+| `categories` | Категории заявок (уборка, ремонт, рум-сервис, вопросы) |
+| `tickets` | Заявки (гость, категория, описание, статус, даты) |
+
+## 🔄 API Эндпоинты
+
+| Метод | Эндпоинт | Назначение |
+|-------|----------|-------------|
+| POST | `/api/auth/login` | Авторизация |
+| POST | `/api/tickets` | Создание заявки |
+| GET | `/api/guest/tickets` | Заявки гостя |
+| GET | `/api/admin/tickets` | Все заявки (админ) |
+| GET | `/api/staff/tickets` | Заявки по роли (сотрудник) |
+| PUT | `/api/tickets/{id}/status` | Изменение статуса |
+| DELETE | `/api/tickets/{id}` | Удаление заявки |
+| GET | `/api/admin/guests` | Список гостей (админ) |
+| GET | `/api/admin/staff` | Список сотрудников (админ) |
+
+## 📁 Структура проекта
+
+```
+app_clone_bitrix/                 # Серверная часть
+├── src/main/kotlin/
+│   ├── com/example/
+│   │   ├── Application.kt        # Точка входа
+│   │   ├── Data/                  # Модели и БД
+│   │   └── plugins/               # Роутинг и настройки
+│   └── resources/                 # Статические файлы
+│
+shared/                           # Клиентская часть (KMP)
+├── src/commonMain/kotlin/
+│   ├── org/example/project/
+│   │   ├── App.kt                 # UI приложения
+│   │   ├── models/                # Data классы
+│   │   └── network/               # ApiClient
+```
+
+## 📄 Лицензия
+
+Данный проект распространяется под лицензией MIT.
 
 ---
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+**Программа готова к использованию после настройки сервера и установки приложения!**
